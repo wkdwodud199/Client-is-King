@@ -58,6 +58,17 @@ Inputs/Outputs/Next step 채워짐 · design.md 의 `Status` 가 `ready`/`done` 
 - 구현 코드는 프로젝트 루트 또는 지정된 소스 디렉터리에 작성하되, 관련 기록은 반드시 `kb/`에 남긴다.
 - 파일명은 task-id 기준 정렬이 가능하도록 `task-<NNN>` 형식을 따른다.
 
+## 게임 프로젝트 규칙 (Client is King)
+
+- Unity 프로젝트는 `game/` 하위에 있다 (Unity 6 에디터 6000.3.8f1, 2D URP). 게임 구현 코드는
+  design.md 가 지정한 `game/` 하위 경로에만 작성한다.
+- **`.meta` 보존**: Unity 에셋과 `.meta` 파일은 쌍이다. `.meta` 를 임의로 삭제·무시하지 않으며,
+  에셋을 이동/삭제할 때 `.meta` 도 함께 처리한다.
+- **스코프 가드**: 구현이 [kb/concepts/demo-scope.md](./kb/concepts/demo-scope.md) 의 하드캡/주차장을
+  벗어나게 되면 구현하지 않고 `implementation-notes.md` 에 기록한 뒤 설계 보완을 요청한다.
+- `game/ProjectSettings/`, `game/Packages/`, `game/Assets/**/*.meta` 는 버전 관리 대상이다 —
+  `.gitignore` 에 추가하지 않는다.
+
 ## 결과 기록 규칙
 
 구현 완료 시 다음을 갱신한다:

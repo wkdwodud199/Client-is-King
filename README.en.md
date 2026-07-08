@@ -12,6 +12,14 @@ This repository creates a repeatable **Codex (Designer) → Claude (Implementer)
 - Claude reads that document and implements accordingly
 - Incomplete design documents are automatically blocked from implementation
 
+## Game Project Overlay — Client is King
+
+This clone hosts **`Client is King`, a Korean-restaurant management simulation game**, built on top of the CWC runtime.
+
+- **Unity 6** (editor 6000.3.8f1, 2D URP) project: `game/` — created in task-102
+- Concept/roadmap SSOT: [kb/concepts/project-brief.md](./kb/concepts/project-brief.md) · scope guard: [kb/concepts/demo-scope.md](./kb/concepts/demo-scope.md)
+- Game tasks are managed as `task-101`+ under `kb/tasks/` (key paths: `game/` · `kb/` · `runtime/`)
+
 ## Workflow
 
 From the user prompt, the lanes that **Codex (Designer)** and **Claude (Implementer)** each traverse. Full write-up: [kb/concepts/workflow.md](./kb/concepts/workflow.md).

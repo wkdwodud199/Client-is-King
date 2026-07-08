@@ -14,7 +14,7 @@
 
 | Task ID | 제목 | 완료일 | 산출물 |
 |---------|------|--------|--------|
-| (없음) | — | — | — |
+| task-101 | 리포 규약 확장 + Unity gitignore + 스코프 가드 | 2026-07-08 | [summary](../artifacts/task-101-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조

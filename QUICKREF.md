@@ -7,6 +7,12 @@
 - **Codex** = 설계자 → `kb/tasks/<id>/design.md` 작성 · (Phase D) 구현 **리뷰어** → `reviews/<NNN>.md`
 - **Claude** = 구현자 → design.md 검증 후 구현, 결과를 `kb/tasks/<id>/implementation-notes.md` 에 기록
 
+## 게임 프로젝트 fast-path — Client is King
+
+- Unity 6(6000.3.8f1) 프로젝트 = `game/` · 게임 task = `task-101`+ · task 기록 = `kb/`
+- 컨셉·로드맵 SSOT: `kb/concepts/project-brief.md` · 스코프 가드: `kb/concepts/demo-scope.md`
+- 브리프/하드캡 밖 기능은 구현 금지 — demo-scope.md 주차장에 **기록만** 한다.
+
 ## 기본 로드 세트 (per task)
 1. `QUICKREF.md` (이 파일)
 2. `kb/tasks/<id>/manifest.md` — 이 task 가 실제로 의존하는 입력/개념/관련 파일만 나열

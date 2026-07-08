@@ -14,6 +14,23 @@
 
 manifest 의 `concepts_needed` / `related_files` 에 적힌 것만 추가로 연다 (전부 읽지 않는다).
 
+## 게임 프로젝트 오버레이 — Client is King (task-101)
+
+이 워크스페이스는 CWC 협업 런타임 위에서 **한식당 경영 시뮬레이션 게임 `Client is King`** 을 개발한다.
+게임 컨셉·로드맵·아키텍처 규약의 SSOT 는 [kb/concepts/project-brief.md](./kb/concepts/project-brief.md),
+데모 범위의 가드는 [kb/concepts/demo-scope.md](./kb/concepts/demo-scope.md) 다.
+
+| 항목 | 규약 |
+|------|------|
+| Unity 프로젝트 위치 | `game/` (Unity 6 에디터 6000.3.8f1, 2D URP, C#) |
+| 게임 구현 코드 | `game/` 하위에만 작성 — task 기록은 기존 규칙대로 `kb/` 하위 |
+| 게임 task 번호 | `task-101` 부터 (task-001~003 은 CWC 프레임워크 legacy) |
+| 범위 판단 기준 | project-brief.md 로드맵 + demo-scope.md 하드캡/주차장 |
+| 버전 관리 | Unity 캐시/빌드는 `.gitignore` 로 차단 · `.meta`/`ProjectSettings/`/`Packages/` 는 추적 대상 |
+
+- 브리프/스코프 밖 기능은 구현하지 않고 demo-scope.md 주차장에 **기록만** 한다.
+- 범위 변경(주차장 승격, 하드캡 완화)은 demo-scope.md 의 "범위 변경 절차"를 따른다.
+
 ## 파일 작성 규칙
 
 ### 경로 규칙

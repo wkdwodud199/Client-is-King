@@ -12,6 +12,14 @@ Codex가 설계하고, Claude가 구현하는 협업 워크스페이스.
 - Claude가 그 문서를 읽고 구현을 진행합니다
 - 설계 문서가 불완전하면 구현이 자동으로 차단됩니다
 
+## 게임 프로젝트 오버레이 — Client is King
+
+이 클론은 CWC 런타임 위에서 **한식당 경영 시뮬레이션 게임 `Client is King` (손님이 왕이다)** 을 개발하는 워크스페이스입니다.
+
+- **Unity 6** (에디터 6000.3.8f1, 2D URP) 프로젝트: `game/` — task-102 에서 생성
+- 컨셉·로드맵 SSOT: [kb/concepts/project-brief.md](./kb/concepts/project-brief.md) · 스코프 가드: [kb/concepts/demo-scope.md](./kb/concepts/demo-scope.md)
+- 게임 task 는 `task-101`+ 로 `kb/tasks/` 에서 관리 (핵심 경로: `game/` · `kb/` · `runtime/`)
+
 ## 워크플로우
 
 사용자 프롬프트부터 **Codex(설계자)** 와 **Claude(구현자)** 가 각각 거치는 흐름. 자세한 설명은 [kb/concepts/workflow.md](./kb/concepts/workflow.md).
