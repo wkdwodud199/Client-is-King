@@ -8,11 +8,15 @@ namespace ClientIsKing.Tests.EditMode
     public class DayPhaseMachineTests
     {
         [Test]
-        public void GameState_Defaults_Are_Day1_Market()
+        public void GameState_Defaults_Are_Day1_Market_With_StartingCash_And_EmptyInventory()
         {
             var state = new GameState();
             Assert.AreEqual(1, state.day);
             Assert.AreEqual(DayPhase.Market, state.currentPhase);
+            Assert.AreEqual(GameState.StartingCash, state.cash, "시작 자금 규약 (task-105)");
+            Assert.Greater(state.cash, 0, "시작 자금은 양수");
+            Assert.IsNotNull(state.ingredientStocks, "인벤토리 list 는 항상 non-null");
+            Assert.AreEqual(0, state.ingredientStocks.Count, "새 게임 인벤토리는 비어 있다");
         }
 
         [Test]

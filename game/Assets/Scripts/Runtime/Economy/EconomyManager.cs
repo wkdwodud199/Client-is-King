@@ -1,0 +1,57 @@
+using ClientIsKing.Data;
+using ClientIsKing.Managers;
+using UnityEngine;
+
+namespace ClientIsKing.Economy
+{
+    /// <summary>
+    /// 경제 매니저 (싱글턴 8종 중 하나) — EconomyOps 로 위임하는 thin wrapper.
+    /// GameManager 부트스트랩 오브젝트에 함께 배치된다 (SceneBuilder 소유).
+    /// </summary>
+    public sealed class EconomyManager : MonoBehaviour
+    {
+        public static EconomyManager Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                return;
+            }
+            Instance = this;
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
+        static DayCycle.GameState State => GameManager.Instance != null ? GameManager.Instance.State : null;
+
+        /// <summary>현재 자금 (상태 미초기화 시 0).</summary>
+        public int Cash => State != null ? State.cash : 0;
+
+        public int CalculatePurchaseCost(IngredientDef def, int quantity)
+        {
+            return EconomyOps.CalculatePurchaseCost(def, quantity);
+        }
+
+        public bool CanAfford(int cost)
+        {
+            return State != null && EconomyOps.CanAfford(State, cost);
+        }
+
+        public PurchaseResult TryPurchaseIngredient(IngredientDef def, int quantity)
+        {
+            var state = State;
+            if (state == null)
+            {
+                return new PurchaseResult(false, "게임 상태가 초기화되지 않았습니다.", 0, 0, 0);
+            }
+            return EconomyOps.TryPurchaseIngredient(state, def, quantity);
+        }
+    }
+}

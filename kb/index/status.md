@@ -18,6 +18,7 @@
 | task-102 | Unity 프로젝트 생성 검증 + 기본 세팅 | 2026-07-09 | [summary](../artifacts/task-102-summary.md) |
 | task-103 | 코어 데이터 모델 (SO 6종 + 초기 데이터) | 2026-07-09 | [summary](../artifacts/task-103-summary.md) |
 | task-104 | 씬 2종 + 하루 상태 머신 + SceneBuilder | 2026-07-09 | [summary](../artifacts/task-104-summary.md) |
+| task-105 | 경제·인벤토리 + 장보기 UI + EditMode 테스트 | 2026-07-09 | [summary](../artifacts/task-105-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조
