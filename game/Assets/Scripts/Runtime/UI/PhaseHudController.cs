@@ -19,10 +19,17 @@ namespace ClientIsKing.UI
         [SerializeField] private GameObject settlementPanel;
         [SerializeField] private GameObject nightPanel;
 
+        private TMP_Text advanceLabel;
+
         private void OnEnable()
         {
             GameEvents.DayPhaseChanged += OnDayPhaseChanged;
             advanceButton.onClick.AddListener(OnAdvanceClicked);
+            if (advanceLabel == null && advanceButton != null)
+            {
+                // 라벨 TMP 는 런타임에 탐색 (설계 16단계 허용 — EditorInit 시그니처 유지)
+                advanceLabel = advanceButton.GetComponentInChildren<TMP_Text>();
+            }
         }
 
         private void OnDisable()
@@ -49,6 +56,21 @@ namespace ClientIsKing.UI
             GameManager.Instance.AdvancePhase();
         }
 
+        private void Update()
+        {
+            // 파산은 phase 이벤트 없이 발생할 수 있어(정산 중) 가벼운 폴링으로 버튼을 잠근다 (task-107).
+            if (advanceButton == null)
+            {
+                return;
+            }
+            var gm = GameManager.Instance;
+            bool bankrupt = gm != null && gm.State != null && gm.State.isBankrupt;
+            if (advanceButton.interactable == bankrupt)
+            {
+                advanceButton.interactable = !bankrupt;
+            }
+        }
+
         private void OnDayPhaseChanged(DayPhaseChangedEventArgs args)
         {
             Refresh(args.Day, args.CurrentPhase);
@@ -60,10 +82,27 @@ namespace ClientIsKing.UI
             {
                 dayPhaseText.text = $"Day {day} — {PhaseLabel(phase)}";
             }
+            if (advanceLabel != null)
+            {
+                advanceLabel.text = AdvanceLabel(phase);
+            }
             if (marketPanel != null) marketPanel.SetActive(phase == DayPhase.Market);
             if (servicePanel != null) servicePanel.SetActive(phase == DayPhase.Service);
             if (settlementPanel != null) settlementPanel.SetActive(phase == DayPhase.Settlement);
             if (nightPanel != null) nightPanel.SetActive(phase == DayPhase.Night);
+        }
+
+        /// <summary>phase 별 진행 버튼 라벨 (task-107 설계 11단계).</summary>
+        public static string AdvanceLabel(DayPhase phase)
+        {
+            switch (phase)
+            {
+                case DayPhase.Market: return "영업 시작 ▶";
+                case DayPhase.Service: return "정산 ▶";
+                case DayPhase.Settlement: return "밤으로 ▶";
+                case DayPhase.Night: return "다음 날 ▶";
+                default: return "다음 단계 ▶";
+            }
         }
 
         /// <summary>한국어 표시명 (데이터가 아니라 HUD 전용 라벨).</summary>

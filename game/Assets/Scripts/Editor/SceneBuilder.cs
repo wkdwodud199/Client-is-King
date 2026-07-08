@@ -5,6 +5,7 @@ using ClientIsKing.Economy;
 using ClientIsKing.Inventory;
 using ClientIsKing.Managers;
 using ClientIsKing.Service;
+using ClientIsKing.Settlement;
 using ClientIsKing.UI;
 using TMPro;
 using UnityEditor;
@@ -92,10 +93,8 @@ namespace ClientIsKing.EditorTools
             // phase 별 패널 — Market 은 task-105 실 장보기 UI, 나머지는 task-106+ 가 교체한다.
             var marketPanel = BuildMarketPanel(canvasGo.transform);
             var servicePanel = BuildServicePanel(canvasGo.transform);
-            var settlementPanel = CreatePanel(canvasGo.transform, "Panel_Settlement", "정산 (task-107)",
-                new Color(0.30f, 0.30f, 0.50f, 0.85f));
-            var nightPanel = CreatePanel(canvasGo.transform, "Panel_Night", "밤 — SNS/저장 (task-109/111)",
-                new Color(0.15f, 0.15f, 0.25f, 0.85f));
+            var settlementPanel = BuildSettlementPanel(canvasGo.transform);
+            var nightPanel = BuildNightPanel(canvasGo.transform);
 
             // 초기 표시는 Market — 런타임에서는 PhaseHudController 가 상태에 맞춰 토글한다.
             marketPanel.SetActive(true);
@@ -128,6 +127,7 @@ namespace ClientIsKing.EditorTools
             go.AddComponent<EconomyManager>();
             go.AddComponent<InventoryManager>();
             go.AddComponent<ServiceManager>();
+            go.AddComponent<SettlementManager>();
         }
 
         static void CreateCamera(bool pixelPerfect)
@@ -317,6 +317,58 @@ namespace ClientIsKing.EditorTools
                 gradeButton, gradeLabel, requiredText,
                 serveButton, skipButton, statsText, messageText,
                 LoadRecipeDefs(), LoadCustomerDefs(), LoadIngredientDefs());
+            return panel;
+        }
+
+        // ── Settlement 정산 UI (task-107) ───────────────────────────────────
+        static GameObject BuildSettlementPanel(Transform parent)
+        {
+            var panel = CreateUIObject("Panel_Settlement", parent);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -22f);
+            rt.sizeDelta = new Vector2(480f, 300f);
+            panel.AddComponent<Image>().color = new Color(0.30f, 0.30f, 0.50f, 0.85f);
+
+            var grossText = CreateText(panel.transform, "GrossText", "매출  +0원", 18f,
+                new Vector2(0f, 112f), new Vector2(440f, 26f));
+            var spendText = CreateText(panel.transform, "SpendText", "재료 지출  -0원", 16f,
+                new Vector2(0f, 84f), new Vector2(440f, 24f));
+            var operatingText = CreateText(panel.transform, "OperatingText", "운영비  -12,000원", 16f,
+                new Vector2(0f, 58f), new Vector2(440f, 24f));
+            var netText = CreateText(panel.transform, "NetText", "순손익  +0원", 22f,
+                new Vector2(0f, 24f), new Vector2(440f, 32f));
+            var cashText = CreateText(panel.transform, "CashText", "잔액  0원 → 0원", 18f,
+                new Vector2(0f, -12f), new Vector2(440f, 26f));
+            var statsText = CreateText(panel.transform, "StatsText", "서빙 0명 · 이탈 0명", 14f,
+                new Vector2(0f, -44f), new Vector2(440f, 22f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 14f,
+                new Vector2(0f, -92f), new Vector2(460f, 56f));
+
+            var controller = panel.AddComponent<SettlementPanelController>();
+            controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText);
+            return panel;
+        }
+
+        // ── Night 하루 마감 UI (task-107 — SNS/저장은 task-109/111 이 추가) ──
+        static GameObject BuildNightPanel(Transform parent)
+        {
+            var panel = CreateUIObject("Panel_Night", parent);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -22f);
+            rt.sizeDelta = new Vector2(480f, 300f);
+            panel.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.25f, 0.85f);
+
+            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 22f,
+                new Vector2(0f, 70f), new Vector2(440f, 32f));
+            var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 16f,
+                new Vector2(0f, 32f), new Vector2(440f, 24f));
+            var statusText = CreateText(panel.transform, "StatusText", "", 16f,
+                new Vector2(0f, -40f), new Vector2(460f, 80f));
+
+            var controller = panel.AddComponent<NightPanelController>();
+            controller.EditorInit(summaryText, daysText, statusText);
             return panel;
         }
 

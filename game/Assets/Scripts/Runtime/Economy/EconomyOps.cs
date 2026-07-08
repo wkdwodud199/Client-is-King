@@ -55,6 +55,13 @@ namespace ClientIsKing.Economy
 
             state.cash -= cost;
             InventoryOps.Add(state, def.Kind, def.Grade, quantity);
+            // 당일 구매 지출 누적 (task-107 정산 표시용) — day 가 바뀌었으면 먼저 리셋한다.
+            if (state.marketSpendDay != state.day)
+            {
+                state.marketSpendDay = state.day;
+                state.marketSpendToday = 0;
+            }
+            state.marketSpendToday += cost;
             int after = InventoryOps.GetQuantity(state, def.Kind, def.Grade);
             return new PurchaseResult(true, $"{def.DisplayName} {quantity}개 구매 완료 (-{cost:N0}원).",
                 cost, state.cash, after);

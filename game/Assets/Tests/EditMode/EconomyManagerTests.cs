@@ -93,5 +93,39 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(GameState.StartingCash, state.cash);
             Assert.AreEqual(0, state.ingredientStocks.Count);
         }
+
+        // ── task-107: 당일 구매 지출 추적 ──────────────────────────────────
+
+        [Test]
+        public void Purchase_Accumulates_MarketSpend_And_Resets_On_New_Day()
+        {
+            var def = LoadDef("rice_c");
+            var state = new GameState();
+
+            EconomyOps.TryPurchaseIngredient(state, def, 2);
+            Assert.AreEqual(def.UnitCost * 2, state.marketSpendToday);
+            Assert.AreEqual(1, state.marketSpendDay);
+
+            EconomyOps.TryPurchaseIngredient(state, def, 1);
+            Assert.AreEqual(def.UnitCost * 3, state.marketSpendToday, "같은 날은 누적");
+
+            state.day = 2; // 다음 날 첫 구매는 리셋 후 누적
+            EconomyOps.TryPurchaseIngredient(state, def, 1);
+            Assert.AreEqual(def.UnitCost, state.marketSpendToday);
+            Assert.AreEqual(2, state.marketSpendDay);
+        }
+
+        [Test]
+        public void Failed_Purchase_Does_Not_Touch_MarketSpend()
+        {
+            var def = LoadDef("beef_b");
+            var state = new GameState { cash = 10 };
+
+            EconomyOps.TryPurchaseIngredient(state, def, 1);   // 자금 부족
+            EconomyOps.TryPurchaseIngredient(state, null, 1);  // null 재료
+            EconomyOps.TryPurchaseIngredient(state, def, 0);   // 0 수량
+
+            Assert.AreEqual(0, state.marketSpendToday, "실패 경로는 지출 통계 불변");
+        }
     }
 }

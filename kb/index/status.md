@@ -20,6 +20,7 @@
 | task-104 | 씬 2종 + 하루 상태 머신 + SceneBuilder | 2026-07-09 | [summary](../artifacts/task-104-summary.md) |
 | task-105 | 경제·인벤토리 + 장보기 UI + EditMode 테스트 | 2026-07-09 | [summary](../artifacts/task-105-summary.md) |
 | task-106 | 조리·서빙 코어 루프 | 2026-07-09 | [summary](../artifacts/task-106-summary.md) |
+| task-107 | 정산 + 하루 마감 + 파산 (**M1 완료 — 첫 플레이어블**) | 2026-07-09 | [summary](../artifacts/task-107-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조

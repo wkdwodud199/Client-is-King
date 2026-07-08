@@ -46,5 +46,34 @@ namespace ClientIsKing.DayCycle
         public int serviceOrdersMissedToday = 0;
         public int serviceCustomersServedToday = 0;
         public int serviceCustomersMissedToday = 0;
+
+        // ── 당일 구매 지출 추적 (task-107 — EconomyOps 가 구매 성공 시 누적) ──
+
+        /// <summary>marketSpendToday 가 속한 일차 (day 가 바뀌면 자동 리셋).</summary>
+        public int marketSpendDay = 0;
+
+        /// <summary>당일 재료 구매 지출 합계 (원).</summary>
+        public int marketSpendToday = 0;
+
+        // ── 일일 정산 기록 (task-107 — SettlementOps 소유, day 당 1회) ──
+
+        /// <summary>마지막으로 정산이 적용된 일차 (0 = 아직 없음).</summary>
+        public int settlementDay = 0;
+
+        public int settlementGrossRevenue = 0;
+        public int settlementIngredientSpend = 0;
+        public int settlementOperatingCost = 0;
+        public int settlementNetProfit = 0;
+        public int settlementCashBefore = 0;
+        public int settlementCashAfter = 0;
+
+        /// <summary>정산까지 마친 완료 일수.</summary>
+        public int daysCompleted = 0;
+
+        // ── 파산 상태 (task-107 — 진행 차단 게이트) ──
+
+        public bool isBankrupt = false;
+        public int bankruptcyDay = 0;
+        public string bankruptcyReason = "";
     }
 }

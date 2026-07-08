@@ -1,4 +1,5 @@
 using ClientIsKing.DayCycle;
+using ClientIsKing.Settlement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -29,7 +30,11 @@ namespace ClientIsKing.Managers
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                // EditMode 테스트(FirstPlayableLoopTests)에서도 생성 가능하도록 Play 모드에서만 적용.
+                DontDestroyOnLoad(gameObject);
+            }
             if (state == null)
             {
                 StartNewGame();
@@ -51,9 +56,25 @@ namespace ClientIsKing.Managers
             machine = new DayPhaseMachine(state);
         }
 
-        /// <summary>다음 phase 로 진행한다 (이벤트 발행은 상태 머신이 담당).</summary>
+        /// <summary>
+        /// 다음 phase 로 진행한다 (이벤트 발행은 상태 머신이 담당).
+        /// task-107 게이트: 파산이면 진행/이벤트 없이 현재 phase 를 유지하고,
+        /// Settlement 이탈 전에 오늘 정산이 미적용이면 먼저 적용한다 (그 결과 파산이면 머문다).
+        /// </summary>
         public DayPhase AdvancePhase()
         {
+            if (state.isBankrupt)
+            {
+                return state.currentPhase;
+            }
+            if (state.currentPhase == DayPhase.Settlement && !SettlementOps.IsSettlementApplied(state))
+            {
+                var result = SettlementOps.ApplyDailySettlement(state);
+                if (result.Bankrupt)
+                {
+                    return state.currentPhase;
+                }
+            }
             return machine.Advance();
         }
 

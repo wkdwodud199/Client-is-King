@@ -26,6 +26,12 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, state.serviceOrdersMissedToday);
             Assert.AreEqual(0, state.serviceCustomersServedToday);
             Assert.AreEqual(0, state.serviceCustomersMissedToday);
+            // task-107: 정산/파산 초기값
+            Assert.AreEqual(0, state.marketSpendToday);
+            Assert.AreEqual(0, state.settlementDay, "정산 전 settlementDay 0");
+            Assert.AreEqual(0, state.daysCompleted);
+            Assert.IsFalse(state.isBankrupt);
+            Assert.AreEqual("", state.bankruptcyReason);
         }
 
         [Test]
