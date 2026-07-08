@@ -1,7 +1,10 @@
 {
     "name": "ClientIsKing.Runtime",
     "rootNamespace": "ClientIsKing",
-    "references": [],
+    "references": [
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

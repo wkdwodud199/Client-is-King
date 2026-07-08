@@ -5,8 +5,11 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "ClientIsKing.Runtime",
+        "ClientIsKing.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Universal.2D.Runtime"
+        "Unity.RenderPipelines.Universal.2D.Runtime",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"
