@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35cabaa15367b974ea93a2a035c6297a, type: 3}
+  m_Name: tteokbokki
+  m_EditorClassIdentifier: ClientIsKing.Runtime::ClientIsKing.Data.RecipeDef
+  id: tteokbokki
+  displayName: "\uB5A1\uBCF6\uC774"
+  genre: {fileID: 11400000, guid: 18563cfeb662d374c804b9b0c8b303d5, type: 2}
+  ingredients:
+  - kind: 1
+    quantity: 2
+  - kind: 8
+    quantity: 1
+  - kind: 5
+    quantity: 1
+  cookSeconds: 10
+  basePrice: 5000

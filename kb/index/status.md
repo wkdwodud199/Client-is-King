@@ -16,6 +16,7 @@
 |---------|------|--------|--------|
 | task-101 | 리포 규약 확장 + Unity gitignore + 스코프 가드 | 2026-07-08 | [summary](../artifacts/task-101-summary.md) |
 | task-102 | Unity 프로젝트 생성 검증 + 기본 세팅 | 2026-07-09 | [summary](../artifacts/task-102-summary.md) |
+| task-103 | 코어 데이터 모델 (SO 6종 + 초기 데이터) | 2026-07-09 | [summary](../artifacts/task-103-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조
