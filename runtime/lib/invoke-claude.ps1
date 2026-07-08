@@ -39,6 +39,9 @@ function Invoke-ClaudeIfEnabled {
         [Parameter(Mandatory=$true)][string]$ProjectRoot
     )
     $script:CwcProvLine = ""
+    # PS 5.1: 러너는 EAP=Stop — native stderr 를 2>&1 로 리다이렉트하면 NativeCommandError 로
+    # 즉사한다. 이 함수는 rc 로만 판정 → 함수 로컬 완화 (동적 스코프, 호출자 불변).
+    $ErrorActionPreference = 'Continue'
 
     if (-not $AutoMode) {
         Write-Host "[INFO] 수동 모드입니다. Claude 자동 호출을 건너뜁니다."
@@ -52,9 +55,10 @@ function Invoke-ClaudeIfEnabled {
         return 0
     }
 
-    $claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue
+    # Get-Command 는 PATH 에 동명 실행파일이 여러 개면 배열을 반환한다 — 첫 번째만 사용.
+    $claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $claudeCmd) {
-        $claudeCmd = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue
+        $claudeCmd = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     }
     if (-not $claudeCmd) {
         Write-Host "[WARN] claude CLI를 찾을 수 없습니다." -ForegroundColor Yellow

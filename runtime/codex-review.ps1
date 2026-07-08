@@ -50,6 +50,8 @@ $prefix = if ($py.Count -gt 1) { $py[1..($py.Count - 1)] } else { @() }
 
 function Invoke-ValidatorArgs {
     param([string[]]$Args)
+    # PS 5.1: EAP=Stop + native stderr 리다이렉트 = 즉사 (lib/common.ps1 Invoke-Validator 주석 참조).
+    $ErrorActionPreference = 'Continue'
     & $exe @prefix $ValidatorCli @Args 2>&1 | ForEach-Object { Write-Host $_ }
     return [int]$LASTEXITCODE
 }
@@ -69,10 +71,14 @@ $effort = Invoke-RenderPrompt -RenderPrompt $RP -Arguments @("profile", "--phase
 if ($effort.Code -ne 0) { Write-Host "[ERROR] 프로필 해석 실패(effort) — 리뷰 중단." -ForegroundColor Red; exit $effort.Code }
 
 # --- CLI 버전 preflight (codex 존재 시에만) ---
-$codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
-if (-not $codexCmd) { $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue }
+# Get-Command 는 PATH 에 동명 실행파일이 여러 개면 배열을 반환한다 — 첫 번째만 사용.
+$codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $codexCmd) { $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 }
 if ($codexCmd) {
+    # PS 5.1: EAP=Stop + native stderr 리다이렉트 = 즉사 → 호출 동안만 Continue.
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $verOut = (& $codexCmd.Source --version 2>&1 | Out-String).Trim()
+    $ErrorActionPreference = $prevEAP
     $ver = Invoke-RenderPrompt -RenderPrompt $RP -Arguments @("check-cli-version", "--phase", "review", "--cli", "codex", "--version-output", $verOut)
     if ($ver.Code -ne 0) {
         Write-Host "[ERROR] codex CLI 버전 preflight 실패 — 호출하지 않습니다. (감지: $verOut)" -ForegroundColor Red
@@ -124,7 +130,10 @@ Move-Item -Force $Staging $ReviewFile
 Write-Host "[OK] 리뷰 생성: $ReviewFile"
 
 # --- 상태 안내 (no-auto-revert) ---
+# PS 5.1: EAP=Stop 상태에서 2>$null 도 stderr 발생 시 즉사 → 호출 동안만 Continue.
+$prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
 $latestJson = (& $exe @prefix $ValidatorCli "--latest-review" $TaskId "--json" 2>$null | Out-String)
+$ErrorActionPreference = $prevEAP
 $status = ""
 try { $status = ($latestJson | ConvertFrom-Json).status } catch { $status = "" }
 Write-Host "[INFO] 최신 리뷰 status: $(if ($status) { $status } else { '?' })"

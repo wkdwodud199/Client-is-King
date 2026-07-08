@@ -36,6 +36,9 @@ function Invoke-CodexIfEnabled {
         [Parameter(Mandatory=$true)][string]$ProjectRoot
     )
     $script:CwcProvLine = ""
+    # PS 5.1: 러너는 EAP=Stop — native stderr(codex 진행 로그, git 오류)를 2>&1/2>$null 로
+    # 리다이렉트하면 NativeCommandError 로 즉사한다. 이 함수는 rc 로만 판정 → 함수 로컬 완화.
+    $ErrorActionPreference = 'Continue'
 
     if (-not $AutoMode) {
         Write-Host "[INFO] 수동 모드입니다. Codex 자동 호출을 건너뜁니다."
@@ -50,9 +53,11 @@ function Invoke-CodexIfEnabled {
         return 0
     }
 
-    $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    # Get-Command 는 PATH 에 동명 실행파일이 여러 개면 배열을 반환한다 (예: git.exe 2개) —
+    # .Source 호출이 깨지지 않도록 항상 첫 번째만 사용한다.
+    $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $codexCmd) {
-        $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue
+        $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     }
     if (-not $codexCmd) {
         Write-Host "[WARN] codex CLI를 찾을 수 없습니다." -ForegroundColor Yellow
@@ -61,7 +66,7 @@ function Invoke-CodexIfEnabled {
     }
 
     # --- preflight: git 저장소 안에서만 자동 호출 (git 안전망 복원) ---
-    $gitCmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+    $gitCmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     $insideRepo = $false
     if ($gitCmd) {
         & $gitCmd.Source -C $ProjectRoot rev-parse --is-inside-work-tree 2>$null | Out-Null
@@ -128,18 +133,20 @@ function Invoke-CodexReview {
         [Parameter(Mandatory=$true)][string]$Model,
         [Parameter(Mandatory=$true)][string]$Effort
     )
+    # PS 5.1: EAP=Stop + native stderr 리다이렉트 = 즉사 (Invoke-CodexIfEnabled 주석 참조).
+    $ErrorActionPreference = 'Continue'
     if ((Test-ClaudeSession) -and (-not (Test-Truthy $env:CODEX_AUTO_FORCE))) {
         Write-Host "[WARN] 세션 내부에서 codex 자동 호출을 거부합니다 (재귀 방지). CODEX_AUTO_FORCE=1 로 우회." -ForegroundColor Yellow
         Write-Host "       리뷰를 생성하지 못했으므로 실패로 종료합니다."
         return 1
     }
-    $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
-    if (-not $codexCmd) { $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue }
+    $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $codexCmd) { $codexCmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 }
     if (-not $codexCmd) {
         Write-Host "[WARN] codex CLI를 찾을 수 없습니다. 리뷰를 생성할 수 없습니다." -ForegroundColor Yellow
         return 1
     }
-    $gitCmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+    $gitCmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     $insideRepo = $false
     if ($gitCmd) {
         & $gitCmd.Source -C $ProjectRoot rev-parse --is-inside-work-tree 2>$null | Out-Null

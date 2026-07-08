@@ -63,8 +63,9 @@ if ((Test-ClaudeSession) -and (-not (Test-Truthy $env:CLAUDE_AUTO_FORCE))) {
     exit 0
 }
 
-$claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue
-if (-not $claudeCmd) { $claudeCmd = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue }
+# Get-Command 는 PATH 에 동명 실행파일이 여러 개면 배열을 반환한다 — 첫 번째만 사용.
+$claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $claudeCmd) { $claudeCmd = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 }
 if (-not $claudeCmd) {
     Write-Host "[WARN] claude CLI를 찾을 수 없습니다. 교차검토를 건너뜁니다." -ForegroundColor Yellow
     exit 1
@@ -79,7 +80,10 @@ $fallback = Invoke-RenderPrompt -RenderPrompt $RP -Arguments @("profile", "--pha
 if ($fallback.Code -ne 0) { Write-Host "[ERROR] 프로필 해석 실패(fallback_model) — 교차검토 중단." -ForegroundColor Red; exit $fallback.Code }
 
 # --- CLI 버전 preflight ---
+# PS 5.1: EAP=Stop + native stderr 리다이렉트 = 즉사 → 네이티브 호출 동안만 Continue.
+$prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
 $verOut = (& $claudeCmd.Source --version 2>&1 | Out-String).Trim()
+$ErrorActionPreference = $prevEAP
 $ver = Invoke-RenderPrompt -RenderPrompt $RP -Arguments @("check-cli-version", "--phase", "design", "--cli", "claude", "--version-output", $verOut)
 if ($ver.Code -ne 0) {
     Write-Host "[ERROR] claude CLI 버전 preflight 실패 — 호출하지 않습니다. (감지: $verOut)" -ForegroundColor Red
@@ -97,9 +101,12 @@ Write-Host "[INFO] Claude 교차검토 요청 중... (model=$($model.Value), eff
 Write-Host ""
 $tmpJson = [System.IO.Path]::GetTempFileName()
 try {
+    # PS 5.1: EAP=Stop 상태에서 2>$null 도 stderr 발생 시 즉사 → 호출 동안만 Continue.
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $raw = ($null | & $claudeCmd.Source -p $prompt.Value --model $model.Value --effort $effort.Value `
         --fallback-model $fallback.Value --output-format json 2>$null | Out-String)
     $claudeRc = [int]$LASTEXITCODE
+    $ErrorActionPreference = $prevEAP
     if ($claudeRc -ne 0) { Write-Host "[ERROR] claude 호출 실패 (exit $claudeRc)." -ForegroundColor Red; exit $claudeRc }
     [System.IO.File]::WriteAllText($tmpJson, $raw, [System.Text.UTF8Encoding]::new($false))
 

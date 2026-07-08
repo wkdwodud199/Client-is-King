@@ -24,6 +24,10 @@ function Invoke-Validator {
         [Parameter(Mandatory=$true)][string]$File,
         [Parameter(Mandatory=$true)][string]$ValidatorCli
     )
+    # PS 5.1: 진입 러너는 EAP=Stop 으로 돌며, native stderr 를 2>&1/2>$null 로 리다이렉트하면
+    # 첫 stderr 줄이 NativeCommandError 로 승격되어 스크립트가 즉사한다 (validator 의 [FAIL] 출력은
+    # stderr 행 — 실 CLI 첫 실행에서 발견). 이 함수는 종료코드로만 판정하므로 함수 로컬로 낮춘다.
+    $ErrorActionPreference = 'Continue'
     $py = Resolve-Python
     if (-not $py) {
         Write-Host "[ERROR] Python 3 을 찾을 수 없습니다." -ForegroundColor Red
@@ -50,6 +54,8 @@ function Invoke-RenderPrompt {
         [Parameter(Mandatory=$true)][string]$RenderPrompt,
         [Parameter(Mandatory=$true)][string[]]$Arguments
     )
+    # PS 5.1: EAP=Stop + native stderr 리다이렉트 = 즉사 (Invoke-Validator 주석 참조) — 함수 로컬 완화.
+    $ErrorActionPreference = 'Continue'
     $py = Resolve-Python
     if (-not $py) {
         Write-Host "[ERROR] Python 3 을 찾을 수 없습니다 (프로필/프롬프트 해석에 필요)." -ForegroundColor Red
