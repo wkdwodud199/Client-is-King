@@ -17,6 +17,15 @@ namespace ClientIsKing.Tests.EditMode
             Assert.Greater(state.cash, 0, "시작 자금은 양수");
             Assert.IsNotNull(state.ingredientStocks, "인벤토리 list 는 항상 non-null");
             Assert.AreEqual(0, state.ingredientStocks.Count, "새 게임 인벤토리는 비어 있다");
+            // task-106: 서비스 상태 초기값
+            Assert.AreEqual(0, state.serviceDay, "영업 시작 전 serviceDay 0");
+            Assert.IsNotNull(state.serviceOrders, "주문 list 는 항상 non-null");
+            Assert.AreEqual(0, state.serviceOrders.Count, "새 게임 주문 목록은 비어 있다");
+            Assert.AreEqual(0, state.serviceRevenueToday);
+            Assert.AreEqual(0, state.serviceOrdersServedToday);
+            Assert.AreEqual(0, state.serviceOrdersMissedToday);
+            Assert.AreEqual(0, state.serviceCustomersServedToday);
+            Assert.AreEqual(0, state.serviceCustomersMissedToday);
         }
 
         [Test]

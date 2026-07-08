@@ -4,6 +4,7 @@ using ClientIsKing.Data;
 using ClientIsKing.Economy;
 using ClientIsKing.Inventory;
 using ClientIsKing.Managers;
+using ClientIsKing.Service;
 using ClientIsKing.UI;
 using TMPro;
 using UnityEditor;
@@ -90,8 +91,7 @@ namespace ClientIsKing.EditorTools
 
             // phase 별 패널 — Market 은 task-105 실 장보기 UI, 나머지는 task-106+ 가 교체한다.
             var marketPanel = BuildMarketPanel(canvasGo.transform);
-            var servicePanel = CreatePanel(canvasGo.transform, "Panel_Service", "영업 (task-106)",
-                new Color(0.45f, 0.35f, 0.20f, 0.85f));
+            var servicePanel = BuildServicePanel(canvasGo.transform);
             var settlementPanel = CreatePanel(canvasGo.transform, "Panel_Settlement", "정산 (task-107)",
                 new Color(0.30f, 0.30f, 0.50f, 0.85f));
             var nightPanel = CreatePanel(canvasGo.transform, "Panel_Night", "밤 — SNS/저장 (task-109/111)",
@@ -127,6 +127,7 @@ namespace ClientIsKing.EditorTools
             var go = new GameObject("GameManager", typeof(GameManager));
             go.AddComponent<EconomyManager>();
             go.AddComponent<InventoryManager>();
+            go.AddComponent<ServiceManager>();
         }
 
         static void CreateCamera(bool pixelPerfect)
@@ -270,6 +271,73 @@ namespace ClientIsKing.EditorTools
                 costText, ownedText, buyButton, messageText,
                 LoadIngredientDefs());
             return panel;
+        }
+
+        // ── Service 영업 UI (task-106) ──────────────────────────────────────
+        static GameObject BuildServicePanel(Transform parent)
+        {
+            var panel = CreateUIObject("Panel_Service", parent);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -22f);
+            rt.sizeDelta = new Vector2(480f, 300f);
+            panel.AddComponent<Image>().color = new Color(0.45f, 0.35f, 0.20f, 0.85f);
+
+            var orderText = CreateText(panel.transform, "OrderText", "주문 1/5", 18f,
+                new Vector2(0f, 122f), new Vector2(440f, 26f));
+            var customerText = CreateText(panel.transform, "CustomerText", "-", 16f,
+                new Vector2(-110f, 96f), new Vector2(220f, 24f));
+            var recipeText = CreateText(panel.transform, "RecipeText", "-", 20f,
+                new Vector2(110f, 96f), new Vector2(220f, 26f));
+            var cookTimeText = CreateText(panel.transform, "CookTimeText", "", 14f,
+                new Vector2(-110f, 72f), new Vector2(220f, 22f));
+            var revenueText = CreateText(panel.transform, "RevenueText", "", 16f,
+                new Vector2(110f, 72f), new Vector2(220f, 22f));
+
+            var gradeButton = CreateButton(panel.transform, "GradeButton", "등급: C급",
+                new Vector2(0f, 40f), new Vector2(160f, 30f));
+            var gradeLabel = gradeButton.GetComponentInChildren<TMP_Text>();
+
+            var requiredText = CreateText(panel.transform, "RequiredText", "", 13f,
+                new Vector2(0f, 8f), new Vector2(460f, 24f));
+
+            var serveButton = CreateButton(panel.transform, "ServeButton", "서빙",
+                new Vector2(-95f, -34f), new Vector2(150f, 34f));
+            var skipButton = CreateButton(panel.transform, "SkipButton", "포기",
+                new Vector2(95f, -34f), new Vector2(150f, 34f));
+
+            var statsText = CreateText(panel.transform, "StatsText", "오늘 매출 0원 · 서빙 0명 · 이탈 0명", 14f,
+                new Vector2(0f, -76f), new Vector2(460f, 22f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 13f,
+                new Vector2(0f, -104f), new Vector2(460f, 40f));
+
+            var controller = panel.AddComponent<ServicePanelController>();
+            controller.EditorInit(
+                orderText, customerText, recipeText, cookTimeText, revenueText,
+                gradeButton, gradeLabel, requiredText,
+                serveButton, skipButton, statsText, messageText,
+                LoadRecipeDefs(), LoadCustomerDefs(), LoadIngredientDefs());
+            return panel;
+        }
+
+        /// <summary>시드 RecipeDef 6종을 id 순으로 로드한다.</summary>
+        static List<RecipeDef> LoadRecipeDefs()
+        {
+            return AssetDatabase.FindAssets("t:RecipeDef", new[] { "Assets/Data/Definitions/Recipes" })
+                .Select(guid => AssetDatabase.LoadAssetAtPath<RecipeDef>(AssetDatabase.GUIDToAssetPath(guid)))
+                .Where(def => def != null)
+                .OrderBy(def => def.Id, System.StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>시드 CustomerArchetypeDef 4종을 id 순으로 로드한다.</summary>
+        static List<CustomerArchetypeDef> LoadCustomerDefs()
+        {
+            return AssetDatabase.FindAssets("t:CustomerArchetypeDef", new[] { "Assets/Data/Definitions/Customers" })
+                .Select(guid => AssetDatabase.LoadAssetAtPath<CustomerArchetypeDef>(AssetDatabase.GUIDToAssetPath(guid)))
+                .Where(def => def != null)
+                .OrderBy(def => def.Id, System.StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>시드 IngredientDef 18종을 id 순으로 로드해 주입한다 (Resources 미사용 — 설계 8단계).</summary>
