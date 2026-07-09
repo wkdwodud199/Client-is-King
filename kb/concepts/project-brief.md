@@ -47,20 +47,32 @@ design은 Codex `gpt-5.5/xhigh` 고정. implement 라우팅(각 design.md 실행
 | task-104 | 씬 2종 + 하루 상태 머신 + SceneBuilder | M1 | claude-fable-5 | xhigh |
 | task-105 | 경제·인벤토리 + 장보기 UI + EditMode 테스트 | M1 | claude-fable-5 | high |
 | task-106 | 조리·서빙 코어 루프 | M1 | claude-fable-5 | xhigh |
-| task-107 | 정산 + 하루 마감 + 파산 (첫 플레이어블) | **M1 완료** | claude-fable-5 | high |
-| task-108 | 장르 선택 시스템 | M2 | claude-fable-5 | high |
-| task-109 | SNS 마케팅 시스템 | M2 | claude-fable-5 | xhigh |
-| task-110 | 이벤트/장애물 시스템 | M2 | claude-fable-5 | high |
-| task-111 | 저장/불러오기 (JSON) | M3 | claude-fable-5 | high |
-| task-112 | 아트·폰트 패스 | M3 | claude-fable-5 | medium |
-| task-113 | 밸런싱 + 엔딩 + Windows 빌드 (데모 완료) | **M3 완료** | claude-fable-5 | high |
+| task-107 | 정산 + 하루 마감 + 파산 (기계적 루프 완성) | M1 | claude-fable-5 | high |
+| task-108 | 표현 미니 패스 — 가게 씬 연출 + 손님 스프라이트 + 서빙/정산 연출 | **M1.5 완료** | claude-fable-5 | xhigh |
+| task-109 | 장르 선택 시스템 | M2 | claude-fable-5 | high |
+| task-110 | SNS 마케팅 시스템 | M2 | claude-fable-5 | xhigh |
+| task-111 | 이벤트/장애물 시스템 | M2 | claude-fable-5 | high |
+| task-112 | 저장/불러오기 (JSON) | M3 | claude-fable-5 | high |
+| task-113 | 아트 마감 패스 (폰트는 M1.5 핫픽스로 선행됨 — 미세조정만) | M3 | claude-fable-5 | medium |
+| task-114 | 밸런싱 + 엔딩 + Windows 빌드 (데모 완료) | **M3 완료** | claude-fable-5 | high |
 
-**게이트**: M1(task-107) 완료 시 사용자 플레이테스트 — 재미 검증 실패 시 M2 진입 전 루프 수정.
+**게이트**: **M1.5(task-108) 완료 시 사용자 플레이테스트** — 재미 검증 실패 시 M2 진입 전 루프 수정.
+(당초 M1(task-107) 게이트였으나, 표현 계층 없이는 재미 평가가 불가능함이 확인되어 오너 승인으로 이동 — 2026-07-09)
 **번호 규칙**: 게임 task는 task-101부터 (task-001~003 legacy 예외 회피).
+
+## 화면 연출 최소 기준 (M1.5 표현 미니 패스)
+
+재미 평가가 가능한 "보이는 게임"의 최소선. 하드캡(CC0/OFL 플레이스홀더, 씬 2개, 미니게임 금지)은 불변.
+
+- **Shop 씬 구성**: 가게 내부 배경(단순 타일/단색+카운터) + 손님 영역(좌) + 카운터(중) + UI 패널(우/하)
+- **손님 표현**: archetype 별 스프라이트(CC0), 입장 → 카운터 이동 → 주문 → (서빙 시 만족 퇴장 / 포기 시 불만 퇴장)
+- **서빙 연출**: 음식 아이콘 표시 + "+N원" 팝업/카운트업
+- **정산·밤 연출**: 정산 수치 카운트업, Night 는 화면 톤 어둡게
+- **기술 제약**: 트윈은 코루틴/lerp 코드 저작만(외부 트윈 라이브러리 금지 — 매니저 규약과 동일), 픽셀 표준(PPU 32) 준수, 사운드는 선택(CC0 한정)
 
 ## Status / Inputs / Outputs / Next step
 
-- **Status**: done (브리프 확정, 2026-07-08)
-- **Inputs**: 사용자 결정 (게임 컨셉·엔진·마일스톤, 2026-07-08 대화)
+- **Status**: done (브리프 확정 2026-07-08 · 로드맵 v2 — 표현 미니 패스 삽입/게이트 이동, 오너 승인 2026-07-09)
+- **Inputs**: 사용자 결정 (게임 컨셉·엔진·마일스톤 2026-07-08 · M1 플레이테스트 피드백 "표현 없이는 재미 평가 불가" 2026-07-09)
 - **Outputs**: 이 문서 — 전체 task 설계의 전제
-- **Next step**: task-101 설계 (`runtime/codex-design.ps1 task-101`)
+- **Next step**: task-108 설계 (`runtime/codex-design.ps1 task-108`) — 표현 미니 패스
