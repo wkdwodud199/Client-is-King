@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using ClientIsKing.Data;
+using ClientIsKing.DayCycle;
 using ClientIsKing.Economy;
 using ClientIsKing.Inventory;
 using ClientIsKing.Managers;
+using ClientIsKing.Presentation;
 using ClientIsKing.Service;
 using TMPro;
 using UnityEngine;
@@ -55,6 +57,7 @@ namespace ClientIsKing.UI
                 messageText.text = "";
             }
             RefreshAll();
+            PublishCurrentOrder(); // 무대 연출에 현재 주문 표시 신호 (task-108)
         }
 
         private void OnDisable()
@@ -77,12 +80,20 @@ namespace ClientIsKing.UI
             {
                 return;
             }
-            var result = service.TryServeCurrentOrder(FindRecipe(service.CurrentOrder), grade);
+            var captured = service.CurrentOrder; // 처리 "전" 주문 캡처 (표현 이벤트 계약, task-108)
+            var result = service.TryServeCurrentOrder(FindRecipe(captured), grade);
             if (messageText != null)
             {
                 messageText.text = result.Message;
             }
+            if (result.Success)
+            {
+                var gm = GameManager.Instance;
+                GameEvents.RaiseServiceOutcomeResolved(
+                    BuildOutcomeArgs(gm != null ? gm.State : null, captured, result, missed: false));
+            }
             RefreshAll();
+            PublishCurrentOrder();
         }
 
         private void OnSkip()
@@ -92,12 +103,61 @@ namespace ClientIsKing.UI
             {
                 return;
             }
+            var captured = service.CurrentOrder;
             var result = service.SkipCurrentOrder();
             if (messageText != null)
             {
                 messageText.text = result.Message;
             }
+            if (result.Success)
+            {
+                var gm = GameManager.Instance;
+                GameEvents.RaiseServiceOutcomeResolved(
+                    BuildOutcomeArgs(gm != null ? gm.State : null, captured, result, missed: true));
+            }
             RefreshAll();
+            PublishCurrentOrder();
+        }
+
+        // ── 표현 이벤트 발행 (task-108 — 도메인 Ops 는 발행하지 않는다) ─────
+
+        private void PublishCurrentOrder()
+        {
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            var service = ServiceManager.Instance;
+            var order = service != null ? service.CurrentOrder : null;
+            GameEvents.RaiseServiceOrderPresented(BuildOrderPresentedArgs(state, order));
+        }
+
+        /// <summary>주문 표시 payload — Message 에 레시피 표시명을 싣는다 (무대 orderLabel 규약).</summary>
+        internal ServicePresentationEventArgs BuildOrderPresentedArgs(DayCycle.GameState state, ServiceOrderState order)
+        {
+            if (state == null || order == null)
+            {
+                return ServicePresentationEventArgs.Empty(state != null ? state.day : 0);
+            }
+            int number = state.serviceOrdersServedToday + state.serviceOrdersMissedToday + 1;
+            var recipe = FindRecipe(order);
+            return new ServicePresentationEventArgs(
+                true, state.day, number, state.serviceOrders.Count,
+                order.customerId, order.recipeId, order.partySize,
+                served: false, missed: false, revenueGained: 0,
+                recipe != null ? recipe.DisplayName : order.recipeId);
+        }
+
+        /// <summary>서빙/포기 결과 payload — 처리 전 캡처한 주문 정보를 보존한다.</summary>
+        internal ServicePresentationEventArgs BuildOutcomeArgs(
+            DayCycle.GameState state, ServiceOrderState captured, ServiceResult result, bool missed)
+        {
+            return new ServicePresentationEventArgs(
+                captured != null, state != null ? state.day : 0, 0,
+                state != null ? state.serviceOrders.Count : 0,
+                captured != null ? captured.customerId : "",
+                captured != null ? captured.recipeId : "",
+                captured != null ? captured.partySize : 0,
+                served: !missed, missed: missed,
+                result.RevenueGained, result.Message);
         }
 
         private RecipeDef FindRecipe(ServiceOrderState order)

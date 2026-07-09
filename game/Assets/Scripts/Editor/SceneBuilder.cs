@@ -4,6 +4,7 @@ using ClientIsKing.Data;
 using ClientIsKing.Economy;
 using ClientIsKing.Inventory;
 using ClientIsKing.Managers;
+using ClientIsKing.Presentation;
 using ClientIsKing.Service;
 using ClientIsKing.Settlement;
 using ClientIsKing.UI;
@@ -37,12 +38,19 @@ namespace ClientIsKing.EditorTools
 
         static readonly Vector2 ReferenceResolution = new Vector2(640f, 360f);
 
+        // phase 패널 공통 배치 (task-108 — 상단 무대가 보이도록 하단 압축)
+        static readonly Vector2 PhasePanelPos = new Vector2(0f, -80f);
+        static readonly Vector2 PhasePanelSize = new Vector2(480f, 200f);
+
         public static void Apply()
         {
             if (!AssetDatabase.IsValidFolder(ScenesDir))
             {
                 AssetDatabase.CreateFolder("Assets", "Scenes");
             }
+
+            // 플레이스홀더 스프라이트 선행 생성 (무대가 로드한다 — task-108)
+            PlaceholderArtBuilder.Apply();
 
             BuildMainMenu();
             BuildShop();
@@ -83,6 +91,9 @@ namespace ClientIsKing.EditorTools
             CreateCamera(pixelPerfect: true);
             CreateEventSystem();
             var canvasGo = CreateCanvas();
+
+            // 무대(+밤 오버레이)를 캔버스 맨 앞 자식으로 — UI 가 항상 위에 렌더/클릭된다 (설계 20단계).
+            BuildShopStage(canvasGo.transform);
 
             var dayPhaseText = CreateText(canvasGo.transform, "DayPhaseText", "Day 1 — 장보기", 24f,
                 new Vector2(-160f, 150f), new Vector2(300f, 40f));
@@ -221,46 +232,156 @@ namespace ClientIsKing.EditorTools
             return go;
         }
 
+        // ── Shop 무대 + 밤 오버레이 (task-108) ──────────────────────────────
+        static void BuildShopStage(Transform canvas)
+        {
+            var stage = CreateUIObject("ShopStage", canvas);
+            var stageRt = (RectTransform)stage.transform;
+            stageRt.anchorMin = stageRt.anchorMax = new Vector2(0.5f, 0.5f);
+            stageRt.anchoredPosition = Vector2.zero;
+            stageRt.sizeDelta = new Vector2(640f, 360f);
+
+            CreateStageImage(stage.transform, "Stage_Backdrop",
+                new Vector2(0f, 100f), new Vector2(640f, 160f), new Color(0.23f, 0.17f, 0.13f, 1f));
+
+            // 손님 이동 영역 마커 (레이아웃 앵커 — 시각 요소 없음)
+            var customerArea = CreateUIObject("Stage_CustomerArea", stage.transform);
+            var areaRt = (RectTransform)customerArea.transform;
+            areaRt.anchorMin = areaRt.anchorMax = new Vector2(0.5f, 0.5f);
+            areaRt.anchoredPosition = new Vector2(-220f, 56f);
+            areaRt.sizeDelta = new Vector2(280f, 110f);
+
+            CreateStageImage(stage.transform, "Stage_Counter",
+                new Vector2(40f, 48f), new Vector2(320f, 32f), new Color(0.38f, 0.26f, 0.18f, 1f));
+
+            var customerGo = CreateUIObject("CustomerSprite", stage.transform);
+            var customerRt = (RectTransform)customerGo.transform;
+            customerRt.anchorMin = customerRt.anchorMax = new Vector2(0.5f, 0.5f);
+            customerRt.anchoredPosition = new Vector2(-360f, 56f);
+            customerRt.sizeDelta = new Vector2(32f, 48f);
+            var customerImage = customerGo.AddComponent<Image>();
+            customerImage.raycastTarget = false;
+            customerImage.preserveAspect = true;
+            var customerLabel = CreateText(customerGo.transform, "CustomerLabel", "", 12f,
+                new Vector2(0f, -32f), new Vector2(64f, 16f));
+
+            var orderLabel = CreateText(stage.transform, "OrderLabel", "", 13f,
+                new Vector2(-160f, 96f), new Vector2(200f, 20f));
+
+            var foodGo = CreateUIObject("FoodIcon", stage.transform);
+            var foodRt = (RectTransform)foodGo.transform;
+            foodRt.anchorMin = foodRt.anchorMax = new Vector2(0.5f, 0.5f);
+            foodRt.anchoredPosition = new Vector2(-40f, 76f);
+            foodRt.sizeDelta = new Vector2(32f, 32f);
+            var foodImage = foodGo.AddComponent<Image>();
+            foodImage.raycastTarget = false;
+            foodImage.preserveAspect = true;
+            foodGo.SetActive(false);
+
+            var cashPopup = CreateText(stage.transform, "CashPopupText", "", 15f,
+                new Vector2(-40f, 96f), new Vector2(180f, 22f));
+            var pulse = CreateText(stage.transform, "SettlementPulseText", "", 19f,
+                new Vector2(150f, 104f), new Vector2(280f, 28f));
+
+            // 밤 오버레이 — 무대 위·HUD/패널 아래 순서, 클릭 차단 금지 (설계 153행)
+            var overlayGo = CreateUIObject("NightOverlay", canvas);
+            var overlayRt = (RectTransform)overlayGo.transform;
+            overlayRt.anchorMin = Vector2.zero;
+            overlayRt.anchorMax = Vector2.one;
+            overlayRt.offsetMin = Vector2.zero;
+            overlayRt.offsetMax = Vector2.zero;
+            var overlayImage = overlayGo.AddComponent<Image>();
+            overlayImage.color = new Color(0f, 0f, 0.04f, 0f);
+            overlayImage.raycastTarget = false;
+
+            var controller = stage.AddComponent<ShopPresentationController>();
+            controller.EditorInit(
+                customerRt, customerImage, customerLabel, orderLabel,
+                foodImage, cashPopup, pulse, overlayImage,
+                LoadCustomerSpriteEntries(), LoadRecipeSpriteEntries());
+        }
+
+        static Image CreateStageImage(Transform parent, string name, Vector2 pos, Vector2 size, Color color)
+        {
+            var go = CreateUIObject(name, parent);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = size;
+            var image = go.AddComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false; // 무대는 UI 클릭을 가로채지 않는다
+            return image;
+        }
+
+        static List<CustomerSpriteEntry> LoadCustomerSpriteEntries()
+        {
+            var list = new List<CustomerSpriteEntry>();
+            foreach (var id in new[] { "student", "office_worker", "family_parent", "senior_regular" })
+            {
+                list.Add(new CustomerSpriteEntry
+                {
+                    customerId = id,
+                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{PlaceholderArtBuilder.CustomersDir}/{id}.png"),
+                });
+            }
+            return list;
+        }
+
+        static List<RecipeSpriteEntry> LoadRecipeSpriteEntries()
+        {
+            var list = new List<RecipeSpriteEntry>();
+            foreach (var id in new[] { "pork_gukbap", "beef_gukbap", "tteokbokki", "gimbap", "janchi_guksu", "bibim_guksu" })
+            {
+                list.Add(new RecipeSpriteEntry
+                {
+                    recipeId = id,
+                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{PlaceholderArtBuilder.FoodIconsDir}/{id}.png"),
+                });
+            }
+            return list;
+        }
+
         // ── Market 장보기 UI (task-105) ─────────────────────────────────────
         static GameObject BuildMarketPanel(Transform parent)
         {
             var panel = CreateUIObject("Panel_Market", parent);
             var rt = (RectTransform)panel.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0f, -22f);
-            rt.sizeDelta = new Vector2(480f, 300f);
+            rt.anchoredPosition = PhasePanelPos;
+            rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.20f, 0.45f, 0.30f, 0.85f);
 
-            var cashText = CreateText(panel.transform, "CashText", "자금 30,000원", 20f,
-                new Vector2(0f, 118f), new Vector2(440f, 28f));
+            var cashText = CreateText(panel.transform, "CashText", "자금 30,000원", 15f,
+                new Vector2(0f, 80f), new Vector2(440f, 22f));
 
             var ingredientPrev = CreateButton(panel.transform, "IngredientPrev", "◀",
-                new Vector2(-190f, 78f), new Vector2(36f, 32f));
-            var ingredientLabel = CreateText(panel.transform, "IngredientLabel", "쌀", 20f,
-                new Vector2(0f, 78f), new Vector2(280f, 32f));
+                new Vector2(-190f, 54f), new Vector2(32f, 26f));
+            var ingredientLabel = CreateText(panel.transform, "IngredientLabel", "쌀", 15f,
+                new Vector2(0f, 54f), new Vector2(260f, 26f));
             var ingredientNext = CreateButton(panel.transform, "IngredientNext", "▶",
-                new Vector2(190f, 78f), new Vector2(36f, 32f));
+                new Vector2(190f, 54f), new Vector2(32f, 26f));
 
             var gradeButton = CreateButton(panel.transform, "GradeButton", "등급: C급",
-                new Vector2(0f, 38f), new Vector2(160f, 32f));
+                new Vector2(0f, 28f), new Vector2(150f, 26f));
             var gradeLabel = gradeButton.GetComponentInChildren<TMP_Text>();
 
             var quantityMinus = CreateButton(panel.transform, "QuantityMinus", "−",
-                new Vector2(-80f, -2f), new Vector2(36f, 32f));
-            var quantityText = CreateText(panel.transform, "QuantityText", "1", 20f,
-                new Vector2(0f, -2f), new Vector2(100f, 32f));
+                new Vector2(-80f, 2f), new Vector2(32f, 26f));
+            var quantityText = CreateText(panel.transform, "QuantityText", "1", 15f,
+                new Vector2(0f, 2f), new Vector2(90f, 26f));
             var quantityPlus = CreateButton(panel.transform, "QuantityPlus", "＋",
-                new Vector2(80f, -2f), new Vector2(36f, 32f));
+                new Vector2(80f, 2f), new Vector2(32f, 26f));
 
-            var costText = CreateText(panel.transform, "CostText", "예상 비용 300원", 18f,
-                new Vector2(0f, -38f), new Vector2(440f, 26f));
-            var ownedText = CreateText(panel.transform, "OwnedText", "보유 0개", 16f,
-                new Vector2(0f, -64f), new Vector2(440f, 24f));
+            var costText = CreateText(panel.transform, "CostText", "예상 비용 300원", 13f,
+                new Vector2(0f, -22f), new Vector2(440f, 20f));
+            var ownedText = CreateText(panel.transform, "OwnedText", "보유 0개", 12f,
+                new Vector2(0f, -42f), new Vector2(440f, 18f));
 
             var buyButton = CreateButton(panel.transform, "BuyButton", "구매",
-                new Vector2(0f, -100f), new Vector2(180f, 36f));
-            var messageText = CreateText(panel.transform, "MessageText", "", 14f,
-                new Vector2(0f, -134f), new Vector2(460f, 24f));
+                new Vector2(0f, -66f), new Vector2(150f, 28f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 11f,
+                new Vector2(0f, -90f), new Vector2(460f, 16f));
 
             var controller = panel.AddComponent<MarketPanelController>();
             controller.EditorInit(
@@ -279,37 +400,37 @@ namespace ClientIsKing.EditorTools
             var panel = CreateUIObject("Panel_Service", parent);
             var rt = (RectTransform)panel.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0f, -22f);
-            rt.sizeDelta = new Vector2(480f, 300f);
+            rt.anchoredPosition = PhasePanelPos;
+            rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.45f, 0.35f, 0.20f, 0.85f);
 
-            var orderText = CreateText(panel.transform, "OrderText", "주문 1/5", 18f,
-                new Vector2(0f, 122f), new Vector2(440f, 26f));
-            var customerText = CreateText(panel.transform, "CustomerText", "-", 16f,
-                new Vector2(-110f, 96f), new Vector2(220f, 24f));
-            var recipeText = CreateText(panel.transform, "RecipeText", "-", 20f,
-                new Vector2(110f, 96f), new Vector2(220f, 26f));
-            var cookTimeText = CreateText(panel.transform, "CookTimeText", "", 14f,
-                new Vector2(-110f, 72f), new Vector2(220f, 22f));
-            var revenueText = CreateText(panel.transform, "RevenueText", "", 16f,
-                new Vector2(110f, 72f), new Vector2(220f, 22f));
+            var orderText = CreateText(panel.transform, "OrderText", "주문 1/5", 14f,
+                new Vector2(0f, 80f), new Vector2(440f, 20f));
+            var customerText = CreateText(panel.transform, "CustomerText", "-", 12f,
+                new Vector2(-110f, 60f), new Vector2(220f, 18f));
+            var recipeText = CreateText(panel.transform, "RecipeText", "-", 14f,
+                new Vector2(110f, 60f), new Vector2(220f, 20f));
+            var cookTimeText = CreateText(panel.transform, "CookTimeText", "", 10f,
+                new Vector2(-110f, 42f), new Vector2(220f, 16f));
+            var revenueText = CreateText(panel.transform, "RevenueText", "", 11f,
+                new Vector2(110f, 42f), new Vector2(220f, 16f));
 
             var gradeButton = CreateButton(panel.transform, "GradeButton", "등급: C급",
-                new Vector2(0f, 40f), new Vector2(160f, 30f));
+                new Vector2(0f, 18f), new Vector2(150f, 26f));
             var gradeLabel = gradeButton.GetComponentInChildren<TMP_Text>();
 
-            var requiredText = CreateText(panel.transform, "RequiredText", "", 13f,
-                new Vector2(0f, 8f), new Vector2(460f, 24f));
+            var requiredText = CreateText(panel.transform, "RequiredText", "", 10f,
+                new Vector2(0f, -6f), new Vector2(460f, 18f));
 
             var serveButton = CreateButton(panel.transform, "ServeButton", "서빙",
-                new Vector2(-95f, -34f), new Vector2(150f, 34f));
+                new Vector2(-95f, -32f), new Vector2(150f, 28f));
             var skipButton = CreateButton(panel.transform, "SkipButton", "포기",
-                new Vector2(95f, -34f), new Vector2(150f, 34f));
+                new Vector2(95f, -32f), new Vector2(150f, 28f));
 
-            var statsText = CreateText(panel.transform, "StatsText", "오늘 매출 0원 · 서빙 0명 · 이탈 0명", 14f,
-                new Vector2(0f, -76f), new Vector2(460f, 22f));
-            var messageText = CreateText(panel.transform, "MessageText", "", 13f,
-                new Vector2(0f, -104f), new Vector2(460f, 40f));
+            var statsText = CreateText(panel.transform, "StatsText", "오늘 매출 0원 · 서빙 0명 · 이탈 0명", 11f,
+                new Vector2(0f, -58f), new Vector2(460f, 16f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 10f,
+                new Vector2(0f, -82f), new Vector2(460f, 24f));
 
             var controller = panel.AddComponent<ServicePanelController>();
             controller.EditorInit(
@@ -326,24 +447,24 @@ namespace ClientIsKing.EditorTools
             var panel = CreateUIObject("Panel_Settlement", parent);
             var rt = (RectTransform)panel.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0f, -22f);
-            rt.sizeDelta = new Vector2(480f, 300f);
+            rt.anchoredPosition = PhasePanelPos;
+            rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.30f, 0.30f, 0.50f, 0.85f);
 
-            var grossText = CreateText(panel.transform, "GrossText", "매출  +0원", 18f,
-                new Vector2(0f, 112f), new Vector2(440f, 26f));
-            var spendText = CreateText(panel.transform, "SpendText", "재료 지출  -0원", 16f,
-                new Vector2(0f, 84f), new Vector2(440f, 24f));
-            var operatingText = CreateText(panel.transform, "OperatingText", "운영비  -12,000원", 16f,
-                new Vector2(0f, 58f), new Vector2(440f, 24f));
-            var netText = CreateText(panel.transform, "NetText", "순손익  +0원", 22f,
-                new Vector2(0f, 24f), new Vector2(440f, 32f));
-            var cashText = CreateText(panel.transform, "CashText", "잔액  0원 → 0원", 18f,
-                new Vector2(0f, -12f), new Vector2(440f, 26f));
-            var statsText = CreateText(panel.transform, "StatsText", "서빙 0명 · 이탈 0명", 14f,
-                new Vector2(0f, -44f), new Vector2(440f, 22f));
-            var messageText = CreateText(panel.transform, "MessageText", "", 14f,
-                new Vector2(0f, -92f), new Vector2(460f, 56f));
+            var grossText = CreateText(panel.transform, "GrossText", "매출  +0원", 14f,
+                new Vector2(0f, 78f), new Vector2(440f, 20f));
+            var spendText = CreateText(panel.transform, "SpendText", "재료 지출  -0원", 12f,
+                new Vector2(0f, 58f), new Vector2(440f, 18f));
+            var operatingText = CreateText(panel.transform, "OperatingText", "운영비  -12,000원", 12f,
+                new Vector2(0f, 40f), new Vector2(440f, 18f));
+            var netText = CreateText(panel.transform, "NetText", "순손익  +0원", 17f,
+                new Vector2(0f, 16f), new Vector2(440f, 26f));
+            var cashText = CreateText(panel.transform, "CashText", "잔액  0원 → 0원", 13f,
+                new Vector2(0f, -10f), new Vector2(440f, 20f));
+            var statsText = CreateText(panel.transform, "StatsText", "서빙 0명 · 이탈 0명", 11f,
+                new Vector2(0f, -32f), new Vector2(440f, 16f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 11f,
+                new Vector2(0f, -66f), new Vector2(460f, 44f));
 
             var controller = panel.AddComponent<SettlementPanelController>();
             controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText);
@@ -356,16 +477,16 @@ namespace ClientIsKing.EditorTools
             var panel = CreateUIObject("Panel_Night", parent);
             var rt = (RectTransform)panel.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0f, -22f);
-            rt.sizeDelta = new Vector2(480f, 300f);
+            rt.anchoredPosition = PhasePanelPos;
+            rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.25f, 0.85f);
 
-            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 22f,
-                new Vector2(0f, 70f), new Vector2(440f, 32f));
-            var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 16f,
-                new Vector2(0f, 32f), new Vector2(440f, 24f));
-            var statusText = CreateText(panel.transform, "StatusText", "", 16f,
-                new Vector2(0f, -40f), new Vector2(460f, 80f));
+            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 17f,
+                new Vector2(0f, 52f), new Vector2(440f, 26f));
+            var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 13f,
+                new Vector2(0f, 24f), new Vector2(440f, 20f));
+            var statusText = CreateText(panel.transform, "StatusText", "", 12f,
+                new Vector2(0f, -34f), new Vector2(460f, 70f));
 
             var controller = panel.AddComponent<NightPanelController>();
             controller.EditorInit(summaryText, daysText, statusText);
