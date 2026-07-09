@@ -5,25 +5,29 @@
 재생성: `Unity.exe -batchmode -quit -nographics -projectPath game -executeMethod ClientIsKing.EditorTools.SceneBuilder.Apply`
 (SceneBuilder.Apply 가 PlaceholderArtBuilder.Apply 를 선행 호출). task-113 아트 마감 패스에서 교체 예정.
 
-## Customers/ — 고객 archetype 4종 (16×24px, PPU 32, Point, 무압축)
+## Customers/ — 고객 archetype 4종 (24×32px v2 — 문자열 픽셀맵, PPU 32, Point, 무압축)
+
+공용 인체 맵(아웃라인·3톤 셰이딩) + archetype 팔레트/액세서리 오버레이 방식.
 
 | 파일 | 생성 방식 |
 |------|-----------|
-| Customers/student.png | PlaceholderArtBuilder 코드 생성 (초록 상의 픽셀 인물) |
-| Customers/office_worker.png | PlaceholderArtBuilder 코드 생성 (파랑 정장 픽셀 인물) |
-| Customers/family_parent.png | PlaceholderArtBuilder 코드 생성 (주황 상의 픽셀 인물) |
-| Customers/senior_regular.png | PlaceholderArtBuilder 코드 생성 (보라 상의·회색 머리 픽셀 인물) |
+| Customers/student.png | PlaceholderArtBuilder 픽셀맵 (초록 후드+캡 학생) |
+| Customers/office_worker.png | PlaceholderArtBuilder 픽셀맵 (파랑 정장+빨간 넥타이 직장인) |
+| Customers/family_parent.png | PlaceholderArtBuilder 픽셀맵 (주황 상의+크림 앞치마 가족) |
+| Customers/senior_regular.png | PlaceholderArtBuilder 픽셀맵 (보라 조끼+회머리+안경 어르신) |
 
-## FoodIcons/ — 레시피 6종 (16×16px, PPU 32, Point, 무압축)
+## FoodIcons/ — 레시피 6종 (20×16px v2 — 문자열 픽셀맵, PPU 32, Point, 무압축)
+
+국그릇(림 하이라이트·김·고명)/접시(단면·소스) 맵 + 내용물 팔레트.
 
 | 파일 | 생성 방식 |
 |------|-----------|
-| FoodIcons/pork_gukbap.png | PlaceholderArtBuilder 코드 생성 (뽀얀 갈색 국그릇) |
-| FoodIcons/beef_gukbap.png | PlaceholderArtBuilder 코드 생성 (진갈색 국그릇) |
-| FoodIcons/tteokbokki.png | PlaceholderArtBuilder 코드 생성 (빨간 접시) |
-| FoodIcons/gimbap.png | PlaceholderArtBuilder 코드 생성 (검정 김말이 접시) |
-| FoodIcons/janchi_guksu.png | PlaceholderArtBuilder 코드 생성 (크림색 국수 그릇) |
-| FoodIcons/bibim_guksu.png | PlaceholderArtBuilder 코드 생성 (주황 비빔 그릇) |
+| FoodIcons/pork_gukbap.png | PlaceholderArtBuilder 픽셀맵 (뽀얀 국물+파·고기 고명) |
+| FoodIcons/beef_gukbap.png | PlaceholderArtBuilder 픽셀맵 (진한 국물+고기 고명) |
+| FoodIcons/tteokbokki.png | PlaceholderArtBuilder 픽셀맵 (접시+빨간 소스+흰 떡) |
+| FoodIcons/gimbap.png | PlaceholderArtBuilder 픽셀맵 (접시+김 단면·밥심·속재료) |
+| FoodIcons/janchi_guksu.png | PlaceholderArtBuilder 픽셀맵 (크림 면+지단·파 고명) |
+| FoodIcons/bibim_guksu.png | PlaceholderArtBuilder 픽셀맵 (양념 면+야채 고명) |
 
 ## 폰트
 

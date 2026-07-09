@@ -258,7 +258,7 @@ namespace ClientIsKing.EditorTools
             var customerRt = (RectTransform)customerGo.transform;
             customerRt.anchorMin = customerRt.anchorMax = new Vector2(0.5f, 0.5f);
             customerRt.anchoredPosition = new Vector2(-360f, 56f);
-            customerRt.sizeDelta = new Vector2(32f, 48f);
+            customerRt.sizeDelta = new Vector2(48f, 64f); // 24×32 스프라이트 ×2 (픽셀 정수배)
             var customerImage = customerGo.AddComponent<Image>();
             customerImage.raycastTarget = false;
             customerImage.preserveAspect = true;
@@ -271,8 +271,8 @@ namespace ClientIsKing.EditorTools
             var foodGo = CreateUIObject("FoodIcon", stage.transform);
             var foodRt = (RectTransform)foodGo.transform;
             foodRt.anchorMin = foodRt.anchorMax = new Vector2(0.5f, 0.5f);
-            foodRt.anchoredPosition = new Vector2(-40f, 76f);
-            foodRt.sizeDelta = new Vector2(32f, 32f);
+            foodRt.anchoredPosition = new Vector2(-40f, 78f);
+            foodRt.sizeDelta = new Vector2(40f, 32f); // 20×16 스프라이트 ×2
             var foodImage = foodGo.AddComponent<Image>();
             foodImage.raycastTarget = false;
             foodImage.preserveAspect = true;
