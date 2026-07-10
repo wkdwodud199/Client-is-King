@@ -49,12 +49,15 @@ design은 Codex `gpt-5.5/xhigh` 고정. implement 라우팅(각 design.md 실행
 | task-106 | 조리·서빙 코어 루프 | M1 | claude-fable-5 | xhigh |
 | task-107 | 정산 + 하루 마감 + 파산 (기계적 루프 완성) | M1 | claude-fable-5 | high |
 | task-108 | 표현 미니 패스 — 가게 씬 연출 + 손님 스프라이트 + 서빙/정산 연출 | **M1.5 완료** | claude-fable-5 | xhigh |
-| task-109 | 장르 선택 시스템 | M2 | claude-fable-5 | high |
-| task-110 | SNS 마케팅 시스템 | M2 | claude-fable-5 | xhigh |
-| task-111 | 이벤트/장애물 시스템 | M2 | claude-fable-5 | high |
-| task-112 | 저장/불러오기 (JSON) | M3 | claude-fable-5 | high |
-| task-113 | 아트 마감 패스 (폰트는 M1.5 핫픽스로 선행됨 — 미세조정만) | M3 | claude-fable-5 | medium |
-| task-114 | 밸런싱 + 엔딩 + Windows 빌드 (데모 완료) | **M3 완료** | claude-fable-5 | high |
+| task-109 | 아트 도입 패스 — 오픈소스 CC0 에셋(손님 걷기 애니·음식·무대) 도입 (M1.5 플레이테스트 피드백, `art-direction.md`) | M1.5 | claude-fable-5 | high |
+| task-110 | 장르 선택 시스템 | M2 | claude-fable-5 | high |
+| task-111 | SNS 마케팅 시스템 | M2 | claude-fable-5 | xhigh |
+| task-112 | 이벤트/장애물 시스템 | M2 | claude-fable-5 | high |
+| task-113 | 저장/불러오기 (JSON) | M3 | claude-fable-5 | high |
+| task-114 | 아트 마감 패스 (폰트는 M1.5 핫픽스로 선행됨 — 미세조정만) | M3 | claude-fable-5 | medium |
+| task-115 | 밸런싱 + 엔딩 + Windows 빌드 (데모 완료) | **M3 완료** | claude-fable-5 | high |
+
+**로드맵 v3 (2026-07-10)**: M1.5 플레이테스트 피드백(자체 생성 도트 품질 상한)으로 **아트 도입을 task-109에 선삽입**, 기존 task-109~114를 +1 시프트(오너 승인). v2 재번호 관례대로 이 SSOT와 `demo-scope.md`만 갱신하고, 완료 task(101~108)의 역사적 task 참조는 그대로 둔다.
 
 **게이트**: **M1.5(task-108) 완료 시 사용자 플레이테스트** — 재미 검증 실패 시 M2 진입 전 루프 수정.
 (당초 M1(task-107) 게이트였으나, 표현 계층 없이는 재미 평가가 불가능함이 확인되어 오너 승인으로 이동 — 2026-07-09)
