@@ -241,8 +241,13 @@ namespace ClientIsKing.EditorTools
             stageRt.anchoredPosition = Vector2.zero;
             stageRt.sizeDelta = new Vector2(640f, 360f);
 
+            // 무대 배경/카운터 — Kenney 타일을 Tiled 로 반복 (task-109). 타일 로드 실패 시 단색 폴백.
+            var floorTile = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderArtBuilder.FloorTilePath);
+            var counterTile = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderArtBuilder.CounterTilePath);
+
             CreateStageImage(stage.transform, "Stage_Backdrop",
-                new Vector2(0f, 100f), new Vector2(640f, 160f), new Color(0.23f, 0.17f, 0.13f, 1f));
+                new Vector2(0f, 100f), new Vector2(640f, 160f), new Color(0.23f, 0.17f, 0.13f, 1f),
+                floorTile);
 
             // 손님 이동 영역 마커 (레이아웃 앵커 — 시각 요소 없음)
             var customerArea = CreateUIObject("Stage_CustomerArea", stage.transform);
@@ -252,13 +257,17 @@ namespace ClientIsKing.EditorTools
             areaRt.sizeDelta = new Vector2(280f, 110f);
 
             CreateStageImage(stage.transform, "Stage_Counter",
-                new Vector2(40f, 48f), new Vector2(320f, 32f), new Color(0.38f, 0.26f, 0.18f, 1f));
+                new Vector2(40f, 48f), new Vector2(320f, 32f), new Color(0.38f, 0.26f, 0.18f, 1f),
+                counterTile);
+
+            // 순수 장식 소품 — 좌석/동선/충돌/상호작용 없음 (주차장 가드, task-109). 음식 그릇 스프라이트 재활용.
+            BuildStageProps(stage.transform);
 
             var customerGo = CreateUIObject("CustomerSprite", stage.transform);
             var customerRt = (RectTransform)customerGo.transform;
             customerRt.anchorMin = customerRt.anchorMax = new Vector2(0.5f, 0.5f);
             customerRt.anchoredPosition = new Vector2(-360f, 56f);
-            customerRt.sizeDelta = new Vector2(48f, 64f); // 24×32 스프라이트 ×2 (픽셀 정수배)
+            customerRt.sizeDelta = new Vector2(64f, 64f); // 16×16 Ninja Adventure 스프라이트 ×4 (픽셀 정수배, task-109)
             var customerImage = customerGo.AddComponent<Image>();
             customerImage.raycastTarget = false;
             customerImage.preserveAspect = true;
@@ -301,7 +310,8 @@ namespace ClientIsKing.EditorTools
                 LoadCustomerSpriteEntries(), LoadRecipeSpriteEntries());
         }
 
-        static Image CreateStageImage(Transform parent, string name, Vector2 pos, Vector2 size, Color color)
+        static Image CreateStageImage(Transform parent, string name, Vector2 pos, Vector2 size, Color color,
+            Sprite tileSprite = null)
         {
             var go = CreateUIObject(name, parent);
             var rt = (RectTransform)go.transform;
@@ -309,9 +319,47 @@ namespace ClientIsKing.EditorTools
             rt.anchoredPosition = pos;
             rt.sizeDelta = size;
             var image = go.AddComponent<Image>();
-            image.color = color;
+            if (tileSprite != null)
+            {
+                // 16×16 타일을 원본 픽셀 크기로 반복 (PPU 32 → 16px = 0.5 unit; Tiled 는 sprite rect 단위로 반복).
+                image.sprite = tileSprite;
+                image.type = Image.Type.Tiled;
+                image.color = Color.white; // 타일 원색 유지
+            }
+            else
+            {
+                image.color = color; // 타일 없으면 단색 폴백
+            }
             image.raycastTarget = false; // 무대는 UI 클릭을 가로채지 않는다
             return image;
+        }
+
+        /// <summary>순수 장식 소품 — 카운터 위 음식 그릇 장식 (좌석/동선/충돌/상호작용 없음, task-109 주차장 가드).</summary>
+        static void BuildStageProps(Transform stage)
+        {
+            var props = new (string name, string spritePath, Vector2 pos, Vector2 size)[]
+            {
+                ("Prop_BowlLeft",  $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png",  new Vector2(140f, 70f), new Vector2(26f, 26f)),
+                ("Prop_BowlMid",   $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png", new Vector2(178f, 70f), new Vector2(26f, 26f)),
+                ("Prop_BowlRight", $"{PlaceholderArtBuilder.FoodIconsDir}/bibim_guksu.png",  new Vector2(216f, 70f), new Vector2(26f, 26f)),
+            };
+            foreach (var (name, spritePath, pos, size) in props)
+            {
+                var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(spritePath);
+                if (sprite == null)
+                {
+                    continue;
+                }
+                var go = CreateUIObject(name, stage);
+                var rt = (RectTransform)go.transform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = pos;
+                rt.sizeDelta = size;
+                var img = go.AddComponent<Image>();
+                img.sprite = sprite;
+                img.preserveAspect = true;
+                img.raycastTarget = false; // 순수 장식 — 클릭/충돌 없음
+            }
         }
 
         static List<CustomerSpriteEntry> LoadCustomerSpriteEntries()
@@ -319,10 +367,14 @@ namespace ClientIsKing.EditorTools
             var list = new List<CustomerSpriteEntry>();
             foreach (var id in new[] { "student", "office_worker", "family_parent", "senior_regular" })
             {
+                var walk = PlaceholderArtBuilder.WalkFramePaths(id)
+                    .Select(p => AssetDatabase.LoadAssetAtPath<Sprite>(p))
+                    .ToArray();
                 list.Add(new CustomerSpriteEntry
                 {
                     customerId = id,
                     sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{PlaceholderArtBuilder.CustomersDir}/{id}.png"),
+                    walkFrames = walk,
                 });
             }
             return list;

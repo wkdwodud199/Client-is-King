@@ -11,7 +11,8 @@ namespace ClientIsKing.Presentation
     public sealed class CustomerSpriteEntry
     {
         public string customerId = "";
-        public Sprite sprite;
+        public Sprite sprite; // idle / fallback (우향 정지 프레임)
+        public Sprite[] walkFrames; // 우향 걷기 순환 프레임 (task-109). 비어 있으면 sprite 로 폴백.
     }
 
     [Serializable]

@@ -23,6 +23,8 @@ namespace ClientIsKing.Presentation
         static readonly Vector2 CustomerExitUnhappyPos = new Vector2(-380f, 56f);
         const float NightOverlayAlpha = 0.55f;
 
+        const float WalkFrameInterval = 0.12f; // 걷기 프레임 스왑 간격 (task-109)
+
         static readonly Color HappyTint = new Color(0.75f, 1f, 0.75f, 1f);
         static readonly Color UnhappyTint = new Color(1f, 0.55f, 0.55f, 1f);
         static readonly Color PositivePulse = new Color(0.45f, 0.95f, 0.45f, 1f);
@@ -45,11 +47,13 @@ namespace ClientIsKing.Presentation
         public IReadOnlyList<RecipeSpriteEntry> RecipeSprites => recipeSprites;
 
         private Coroutine customerRoutine;
+        private Coroutine walkRoutine;
         private Coroutine foodRoutine;
         private Coroutine popupRoutine;
         private Coroutine pulseRoutine;
         private Coroutine overlayRoutine;
         private Vector2 popupBasePos;
+        private Sprite[] currentWalkFrames; // 현재 손님의 걷기 프레임 (없으면 null → idle 고정)
 
         private void OnEnable()
         {
@@ -112,13 +116,16 @@ namespace ClientIsKing.Presentation
                 return;
             }
 
-            var sprite = FindCustomerSprite(args.CustomerId);
+            var entry = FindCustomerEntry(args.CustomerId);
+            var sprite = entry?.sprite;
+            currentWalkFrames = ValidWalkFrames(entry);
             if (customerImage != null)
             {
                 customerImage.sprite = sprite;
                 customerImage.color = Color.white;
                 customerImage.enabled = sprite != null; // 미지 id → 이미지 숨김 (fallback)
                 customerImage.gameObject.SetActive(true);
+                FaceRight(); // 입장 = 우향
             }
             if (customerLabel != null)
             {
@@ -132,8 +139,7 @@ namespace ClientIsKing.Presentation
 
             if (Application.isPlaying && isActiveAndEnabled && customerRect != null)
             {
-                Run(ref customerRoutine, PresentationTween.MoveAnchored(
-                    customerRect, CustomerEnterPos, CustomerCounterPos, 0.45f));
+                Run(ref customerRoutine, EnterRoutine(sprite));
             }
             else if (customerRect != null)
             {
@@ -253,10 +259,86 @@ namespace ClientIsKing.Presentation
         {
             customerImage.color = happy ? HappyTint : UnhappyTint;
             yield return new WaitForSeconds(0.22f);
+            // 만족 = 우향(+1), 불만 = 좌향(-1) 플립. 스프라이트 재작업 없이 우향 시트만 사용.
+            if (happy) { FaceRight(); } else { FaceLeft(); }
+            StartWalkCycle();
             yield return PresentationTween.MoveAnchored(
                 customerRect, customerRect.anchoredPosition,
                 happy ? CustomerExitHappyPos : CustomerExitUnhappyPos, 0.4f);
+            StopWalkCycle(snapSprite: null); // 퇴장 후 숨겨질 것이므로 스프라이트 복원 불필요
             HideCustomer();
+        }
+
+        // ── 걷기 프레임 스왑 (task-109) ─────────────────────────────────────
+
+        /// <summary>입장: 이동하며 걷기 프레임 순환 → 도착 시 idle 고정.</summary>
+        private IEnumerator EnterRoutine(Sprite idleSprite)
+        {
+            StartWalkCycle();
+            yield return PresentationTween.MoveAnchored(
+                customerRect, CustomerEnterPos, CustomerCounterPos, 0.45f);
+            StopWalkCycle(snapSprite: idleSprite); // 정지 시 idle 고정
+        }
+
+        /// <summary>이동 중에만 도는 프레임 스왑 서브 코루틴 시작 (walkFrames 없으면 no-op).</summary>
+        private void StartWalkCycle()
+        {
+            if (!Application.isPlaying || currentWalkFrames == null || currentWalkFrames.Length == 0 || customerImage == null)
+            {
+                return;
+            }
+            Run(ref walkRoutine, WalkCycleRoutine());
+        }
+
+        private IEnumerator WalkCycleRoutine()
+        {
+            int i = 0;
+            while (true)
+            {
+                var frame = currentWalkFrames[i % currentWalkFrames.Length];
+                if (frame != null)
+                {
+                    customerImage.sprite = frame;
+                    customerImage.enabled = true;
+                }
+                i++;
+                yield return new WaitForSeconds(WalkFrameInterval);
+            }
+        }
+
+        /// <summary>걷기 순환 정지 + (있으면) idle 스프라이트로 고정.</summary>
+        private void StopWalkCycle(Sprite snapSprite)
+        {
+            if (walkRoutine != null)
+            {
+                StopCoroutine(walkRoutine);
+                walkRoutine = null;
+            }
+            if (snapSprite != null && customerImage != null)
+            {
+                customerImage.sprite = snapSprite;
+                customerImage.enabled = true;
+            }
+        }
+
+        private void FaceRight()
+        {
+            if (customerImage != null)
+            {
+                var s = customerImage.rectTransform.localScale;
+                s.x = Mathf.Abs(s.x);
+                customerImage.rectTransform.localScale = s;
+            }
+        }
+
+        private void FaceLeft()
+        {
+            if (customerImage != null)
+            {
+                var s = customerImage.rectTransform.localScale;
+                s.x = -Mathf.Abs(s.x);
+                customerImage.rectTransform.localScale = s;
+            }
         }
 
         private IEnumerator PulseRoutine()
@@ -270,9 +352,12 @@ namespace ClientIsKing.Presentation
 
         private void HideCustomer()
         {
+            StopWalkCycle(snapSprite: null);
+            currentWalkFrames = null;
             if (customerImage != null)
             {
                 customerImage.gameObject.SetActive(false);
+                FaceRight(); // 다음 입장을 위해 우향으로 복원
             }
             if (customerLabel != null)
             {
@@ -288,16 +373,34 @@ namespace ClientIsKing.Presentation
             }
         }
 
-        private Sprite FindCustomerSprite(string customerId)
+        private CustomerSpriteEntry FindCustomerEntry(string customerId)
         {
             foreach (var entry in customerSprites)
             {
                 if (entry != null && entry.customerId == customerId)
                 {
-                    return entry.sprite;
+                    return entry;
                 }
             }
             return null;
+        }
+
+        /// <summary>entry 의 walkFrames 중 null 이 아닌 실제 스프라이트만; 없으면 null (단일 sprite 폴백).</summary>
+        static Sprite[] ValidWalkFrames(CustomerSpriteEntry entry)
+        {
+            if (entry?.walkFrames == null || entry.walkFrames.Length == 0)
+            {
+                return null;
+            }
+            var valid = new List<Sprite>(entry.walkFrames.Length);
+            foreach (var f in entry.walkFrames)
+            {
+                if (f != null)
+                {
+                    valid.Add(f);
+                }
+            }
+            return valid.Count > 0 ? valid.ToArray() : null;
         }
 
         private Sprite FindRecipeSprite(string recipeId)

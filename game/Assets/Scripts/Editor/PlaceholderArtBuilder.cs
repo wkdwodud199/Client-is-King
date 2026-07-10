@@ -6,43 +6,74 @@ using UnityEngine;
 namespace ClientIsKing.EditorTools
 {
     /// <summary>
-    /// task-108(+M1.5 피드백 v2): 플레이스홀더 스프라이트를 문자열 픽셀맵으로 생성하는 에디터 유틸.
-    /// 외부 에셋 없이 재현 가능(프로젝트 생성형 CC0 상당) — 출처 기록은 PLACEHOLDER-PROVENANCE.md.
-    /// task-113 아트 마감에서 교체 예정.
+    /// task-109 아트 도입 패스: 손님·음식 스프라이트를 CC0 오픈소스 팩 서브셋에서 파생한다.
+    /// 원본 팩은 Assets/Art/OpenSource/ 아래 무수정 보존(source-of-truth)하고, 여기서는 그 시트의
+    /// 특정 프레임을 잘라(GetPixels) 개별 PNG(Customers/·FoodIcons/)로 산출한다. 출처·파생 규약은
+    /// PLACEHOLDER-PROVENANCE.md 에 기록한다. (이전 v2 절차적 픽셀맵 생성을 대체.)
     ///
-    /// v2: 고객 24×32 (아웃라인·3톤 셰이딩·archetype 액세서리), 음식 20×16 (그릇/접시·고명·김).
-    /// 멱등 규약: 픽셀이 결정론적이므로 기존 파일과 바이트가 같으면 다시 쓰지 않는다.
+    /// - 손님: Ninja Adventure(CC0) 4캐릭터의 우향 idle 1프레임 + 우향 걷기 4프레임.
+    ///   archetype→character: student→Boy, office_worker→ManGreen, family_parent→Woman, senior_regular→OldMan.
+    ///   Walk.png 64×64(4방향×4프레임, 프레임 16×16), Idle.png 64×16(4프레임). 우향 = 이미지 맨 아래 행(행3).
+    ///   Texture2D.LoadImage 는 bottom-origin 이므로 이미지 행3(우향)은 텍스처 y∈[0,16).
+    /// - 음식: karsiori Food Pack(CC0)·Henry Software Pixel Food(CC0) 개별 스프라이트를 직접 매핑(리컬러 없음 — task-114 이월).
+    ///
+    /// 멱등 규약: PNG 를 읽어 자른 뒤 인코딩한 바이트가 기존 파일과 같으면 다시 쓰지 않는다 (GUID 안정).
+    /// 임포트 표준: Sprite · PPU 32 · Point · 무압축 · mipmap off (테스트가 고정).
     /// </summary>
     public static class PlaceholderArtBuilder
     {
         public const string Root = "Assets/Art/Placeholders";
         public const string CustomersDir = Root + "/Customers";
         public const string FoodIconsDir = Root + "/FoodIcons";
+        public const string StageDir = Root + "/Stage";
         public const string ProvenancePath = Root + "/PLACEHOLDER-PROVENANCE.md";
 
-        // ── 공용 팔레트 ─────────────────────────────────────────────────────
-        static readonly Color32 Clear = new Color32(0, 0, 0, 0);
-        static readonly Color32 Outline = new Color32(33, 29, 42, 255);
-        static readonly Color32 Skin = new Color32(245, 204, 176, 255);
-        static readonly Color32 SkinSh = new Color32(214, 166, 136, 255);
-        static readonly Color32 Eye = new Color32(33, 29, 42, 255);
-        static readonly Color32 Pants = new Color32(72, 66, 90, 255);
-        static readonly Color32 PantsSh = new Color32(55, 50, 70, 255);
-        static readonly Color32 Shoe = new Color32(42, 38, 52, 255);
-        static readonly Color32 White = new Color32(248, 246, 240, 255);
-        static readonly Color32 Steam = new Color32(255, 255, 255, 130);
-        static readonly Color32 BowlLight = new Color32(226, 226, 232, 255);
-        static readonly Color32 BowlBase = new Color32(196, 198, 208, 255);
-        static readonly Color32 BowlSh = new Color32(158, 160, 174, 255);
+        const string OpenSourceRoot = "Assets/Art/OpenSource";
+        const string NinjaRoot = OpenSourceRoot + "/NinjaAdventure/Character";
+        const string KarsioriRoot = OpenSourceRoot + "/karsiori-FoodPack";
+        const string HenryRoot = OpenSourceRoot + "/HenrySoftware-PixelFood/Food";
+        const string KenneySheet = OpenSourceRoot + "/Kenney-RoguelikeRPG/roguelikeSheet_transparent.png";
+
+        // Kenney Roguelike/RPG 시트: 16×16 타일 + 타일 간 1px 여백 → 타일 (col,row) 원점 = (col*17, row*17).
+        const int KenneyTile = 16;
+        const int KenneyStride = 17;
+        // 무대 타일 좌표 (PIL top-origin 그리드 기준 — 실측: 아래 provenance 참조).
+        static readonly (int col, int row) FloorTileCell = (8, 1);   // 크림 벽/바닥 plaster (밝은 톤)
+        static readonly (int col, int row) CounterTileCell = (6, 10); // 나무 판자 카운터 (갈색 톤)
+
+        const int CustomerFrame = 16; // Ninja Adventure 프레임 한 변(px)
+        const int WalkFrameCount = 4; // 우향 걷기 프레임 수
+
+        // archetype id → Ninja Adventure 캐릭터 폴더명
+        static readonly (string id, string character)[] CustomerMap =
+        {
+            ("student", "Boy"),
+            ("office_worker", "ManGreen"),
+            ("family_parent", "Woman"),
+            ("senior_regular", "OldMan"),
+        };
+
+        // recipeId → OpenSource 소스 PNG 경로 (직접 매핑, 리컬러 없음)
+        static readonly (string id, string source)[] FoodMap =
+        {
+            ("pork_gukbap",  KarsioriRoot + "/Carrot stew.png"),
+            ("beef_gukbap",  KarsioriRoot + "/Pumpkin soup.png"),
+            ("janchi_guksu", KarsioriRoot + "/Mushroom Stew.png"),
+            ("bibim_guksu",  KarsioriRoot + "/Tomato stew.png"),
+            ("tteokbokki",   KarsioriRoot + "/Meatballs.png"),
+            ("gimbap",       HenryRoot + "/Sushi.png"),
+        };
 
         public static void Apply()
         {
             EnsureFolder(Root);
             EnsureFolder(CustomersDir);
             EnsureFolder(FoodIconsDir);
+            EnsureFolder(StageDir);
 
             BuildCustomers();
             BuildFoods();
+            BuildStageTiles();
 
             AssetDatabase.Refresh();
             ApplyImportSettings();
@@ -50,312 +81,210 @@ namespace ClientIsKing.EditorTools
             if (!File.Exists(ProvenancePath))
             {
                 throw new FileNotFoundException(
-                    "PLACEHOLDER-PROVENANCE.md 가 없다 — 플레이스홀더 출처 기록은 필수 (task-108 설계)", ProvenancePath);
+                    "PLACEHOLDER-PROVENANCE.md 가 없다 — 플레이스홀더/오픈소스 출처 기록은 필수 (task-108/109 설계)", ProvenancePath);
             }
-            Debug.Log("[PlaceholderArtBuilder] placeholder sprites ready (customers 4, food icons 6)");
+            Debug.Log("[PlaceholderArtBuilder] OpenSource-derived sprites ready (customers 4×(idle+walk4), food icons 6)");
         }
 
-        /// <summary>생성된 모든 스프라이트 경로 (임포트 설정/테스트 공용).</summary>
+        /// <summary>산출된 모든 스프라이트 경로 (임포트 설정/테스트 공용). idle + walk0..3 + 음식 6.</summary>
         public static IEnumerable<string> AllSpritePaths()
         {
-            yield return $"{CustomersDir}/student.png";
-            yield return $"{CustomersDir}/office_worker.png";
-            yield return $"{CustomersDir}/family_parent.png";
-            yield return $"{CustomersDir}/senior_regular.png";
-            yield return $"{FoodIconsDir}/pork_gukbap.png";
-            yield return $"{FoodIconsDir}/beef_gukbap.png";
-            yield return $"{FoodIconsDir}/tteokbokki.png";
-            yield return $"{FoodIconsDir}/gimbap.png";
-            yield return $"{FoodIconsDir}/janchi_guksu.png";
-            yield return $"{FoodIconsDir}/bibim_guksu.png";
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // 고객 4종 — 공용 24×32 인체 맵 + archetype 팔레트/액세서리
-        // 문자: . 투명 / O 외곽선 / S,s 피부 / H,h 머리 / C,c 상의 / P,p 하의 / B 신발 / E 눈 / W 하이라이트
-        // ════════════════════════════════════════════════════════════════════
-        static readonly string[] HumanoidMap =
-        {
-            //         111111111122223
-            //123456789012345678901234 (24 cols)
-            "........OOOOOOOO........", // 0  머리 꼭대기
-            ".......OHHHHHHHHO.......", // 1
-            "......OHHHHHHHHHHO......", // 2
-            "......OHHHHHHHHHHO......", // 3
-            "......OHhHHHHHHhHO......", // 4  헤어라인
-            "......OSSSSSSSSSsO......", // 5  이마
-            "......OSSSSSSSSSsO......", // 6
-            "......OSESSSSSSEsO......", // 7  눈
-            "......OSSSSSSSSSsO......", // 8
-            "......OSSssssssSsO......", // 9  입가 음영
-            ".......OSSSSSSSsO.......", // 10 턱
-            "........OssssssO........", // 11 목
-            ".......OCCCCCCCCO.......", // 12 어깨
-            "......OCCCCCCCCCcO......", // 13
-            ".....OCcCCCCCCCCcCO.....", // 14 팔 시작
-            ".....OCcCCCCCCCCcCO.....", // 15
-            ".....OCcCCCCCCCCcCO.....", // 16
-            ".....OCcCCCCCCCCcCO.....", // 17
-            ".....OScCCCCCCCCcSO.....", // 18 손
-            "......OcCCCCCCCCcO......", // 19
-            "......OccCCCCCCccO......", // 20 밑단
-            ".......OPPPPPPPPO.......", // 21 하의
-            ".......OPPPppPPPO.......", // 22
-            ".......OPPOOOOPPO.......", // 23 다리 갈라짐
-            ".......OPPO..OPPO.......", // 24
-            ".......OPPO..OPPO.......", // 25
-            ".......OppO..OppO.......", // 26
-            ".......OppO..OppO.......", // 27
-            ".......OBBO..OBBO.......", // 28 신발
-            "......OBBBO..OBBBO......", // 29
-            "......OOOOO..OOOOO......", // 30
-            "........................", // 31 바닥 여백
-        };
-
-        static Dictionary<char, Color32> HumanoidPalette(Color32 hair, Color32 hairSh, Color32 cloth, Color32 clothSh)
-        {
-            return new Dictionary<char, Color32>
+            foreach (var (id, _) in CustomerMap)
             {
-                ['O'] = Outline,
-                ['S'] = Skin, ['s'] = SkinSh, ['E'] = Eye,
-                ['H'] = hair, ['h'] = hairSh,
-                ['C'] = cloth, ['c'] = clothSh,
-                ['P'] = Pants, ['p'] = PantsSh,
-                ['B'] = Shoe, ['W'] = White,
-            };
+                yield return $"{CustomersDir}/{id}.png"; // idle / fallback 겸용
+                for (int f = 0; f < WalkFrameCount; f++)
+                {
+                    yield return $"{CustomersDir}/{id}_walk{f}.png";
+                }
+            }
+            foreach (var (id, _) in FoodMap)
+            {
+                yield return $"{FoodIconsDir}/{id}.png";
+            }
+            yield return $"{StageDir}/floor.png";
+            yield return $"{StageDir}/counter.png";
         }
 
+        /// <summary>손님 idle 스프라이트 경로만 (테스트/카탈로그 공용).</summary>
+        public static IEnumerable<string> CustomerIdlePaths()
+        {
+            foreach (var (id, _) in CustomerMap)
+            {
+                yield return $"{CustomersDir}/{id}.png";
+            }
+        }
+
+        /// <summary>주어진 archetype id 의 우향 걷기 프레임 경로 4종 (순서 보장).</summary>
+        public static IEnumerable<string> WalkFramePaths(string customerId)
+        {
+            for (int f = 0; f < WalkFrameCount; f++)
+            {
+                yield return $"{CustomersDir}/{customerId}_walk{f}.png";
+            }
+        }
+
+        public static string FloorTilePath => $"{StageDir}/floor.png";
+        public static string CounterTilePath => $"{StageDir}/counter.png";
+
+        // ════════════════════════════════════════════════════════════════════
+        // 손님 — Ninja Adventure 우향 idle + 걷기 4프레임 파생
+        // ════════════════════════════════════════════════════════════════════
         static void BuildCustomers()
         {
-            const int w = 24;
-
-            // 학생 — 초록 후드 + 초록 캡 (머리 위 4줄을 상의색 모자로)
+            foreach (var (id, character) in CustomerMap)
             {
-                var cloth = new Color32(96, 172, 98, 255);
-                var clothSh = new Color32(66, 132, 72, 255);
-                var px = FromMap(HumanoidMap, w, HumanoidPalette(
-                    new Color32(46, 42, 52, 255), new Color32(34, 31, 40, 255), cloth, clothSh));
-                for (int row = 0; row <= 3; row++) // 캡: 윗머리를 상의색으로
+                string walkPath = $"{NinjaRoot}/{character}/SeparateAnim/Walk.png";
+                string idlePath = $"{NinjaRoot}/{character}/SeparateAnim/Idle.png";
+
+                var walkTex = LoadReadableTexture(walkPath);
+                var idleTex = LoadReadableTexture(idlePath);
+                var walkPx = walkTex.GetPixels32();
+                var idlePx = idleTex.GetPixels32();
+                int walkW = walkTex.width, walkH = walkTex.height;
+                int idleW = idleTex.width, idleH = idleTex.height;
+                Object.DestroyImmediate(walkTex);
+                Object.DestroyImmediate(idleTex);
+
+                // 우향 idle = Idle.png 프레임 index 3 (x∈[48,64)). Idle.png 는 64×16 → 텍스처 y∈[0,16).
+                WritePng($"{CustomersDir}/{id}.png",
+                    Region(idlePx, idleW, idleH, 3 * CustomerFrame, 0, CustomerFrame, CustomerFrame),
+                    CustomerFrame, CustomerFrame);
+
+                // 우향 걷기 = Walk.png 이미지 행3(우향). Texture2D 는 bottom-origin 이라 시각 맨 아래 행(우향)은
+                // 텍스처 y∈[0,16). 4프레임 x=0,16,32,48.
+                for (int f = 0; f < WalkFrameCount; f++)
                 {
-                    RecolorRow(px, w, HumanoidMap, row, 'H', cloth);
-                    RecolorRow(px, w, HumanoidMap, row, 'h', clothSh);
+                    WritePng($"{CustomersDir}/{id}_walk{f}.png",
+                        Region(walkPx, walkW, walkH, f * CustomerFrame, 0, CustomerFrame, CustomerFrame),
+                        CustomerFrame, CustomerFrame);
                 }
-                WriteSprite($"{CustomersDir}/student.png", px, w);
-            }
-
-            // 직장인 — 갈색 머리 + 파랑 정장 + 빨간 넥타이
-            {
-                var px = FromMap(HumanoidMap, w, HumanoidPalette(
-                    new Color32(94, 66, 48, 255), new Color32(72, 50, 38, 255),
-                    new Color32(76, 118, 198, 255), new Color32(54, 88, 158, 255)));
-                var tie = new Color32(198, 62, 58, 255);
-                for (int row = 12; row <= 16; row++) // 넥타이 (가슴 중앙 2px)
-                {
-                    SetTop(px, w, 11, row, tie);
-                    SetTop(px, w, 12, row, tie);
-                }
-                WriteSprite($"{CustomersDir}/office_worker.png", px, w);
-            }
-
-            // 가족 손님 — 짙은 갈색 머리 + 주황 상의 + 크림 앞치마
-            {
-                var px = FromMap(HumanoidMap, w, HumanoidPalette(
-                    new Color32(70, 50, 40, 255), new Color32(54, 39, 32, 255),
-                    new Color32(224, 142, 66, 255), new Color32(182, 108, 46, 255)));
-                var apron = new Color32(238, 228, 206, 255);
-                var apronSh = new Color32(212, 200, 176, 255);
-                for (int row = 15; row <= 20; row++) // 앞치마 (몸통 중앙)
-                {
-                    for (int x = 9; x <= 14; x++)
-                    {
-                        SetTop(px, w, x, row, row >= 19 ? apronSh : apron);
-                    }
-                }
-                WriteSprite($"{CustomersDir}/family_parent.png", px, w);
-            }
-
-            // 동네 어르신 — 회색 머리 + 보라 조끼 + 안경
-            {
-                var px = FromMap(HumanoidMap, w, HumanoidPalette(
-                    new Color32(184, 184, 192, 255), new Color32(152, 152, 162, 255),
-                    new Color32(152, 114, 192, 255), new Color32(118, 86, 154, 255)));
-                for (int x = 8; x <= 9; x++) SetTop(px, w, x, 7, Outline);   // 안경 왼 렌즈
-                for (int x = 14; x <= 15; x++) SetTop(px, w, x, 7, Outline); // 안경 오른 렌즈
-                SetTop(px, w, 11, 7, Outline); SetTop(px, w, 12, 7, Outline); // 브릿지
-                WriteSprite($"{CustomersDir}/senior_regular.png", px, w);
             }
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // 음식 6종 — 국그릇/접시 20×16 맵 + 내용물 팔레트/고명 오버레이
-        // 문자: T 김(스팀) / G,g 내용물 / W 림 하이라이트 / B,b 그릇 / L 접시 / O 외곽선
+        // 음식 — karsiori/Henry 개별 스프라이트 직접 매핑 (소스 크기 유지 + 투명 트림)
         // ════════════════════════════════════════════════════════════════════
-        static readonly string[] SoupBowlMap =
-        {
-            //         1111111111
-            //1234567890123456789 (20 cols)
-            ".....T....T.........", // 0 김
-            "....T....T..........", // 1
-            "....................", // 2
-            "..OOOOOOOOOOOOOO....", // 3 내용물 상단
-            ".OGGGGGGGGGGGGGGO...", // 4
-            ".OGgGGgGGGgGGgGGO...", // 5
-            "..OWWWWWWWWWWWWO....", // 6 림
-            "..OBBBBBBBBBBBBO....", // 7 그릇
-            "..OBBBBBBBBBBbbO....", // 8
-            "...OBBBBBBBBbbO.....", // 9
-            "...ObbbbbbbbbbO.....", // 10
-            "....OOOOOOOOOO......", // 11
-            "......OBBBBO........", // 12 굽
-            "......ObbbbO........", // 13
-            ".......OOOO.........", // 14
-            "....................", // 15
-        };
-
-        static readonly string[] PlateMap =
-        {
-            //1234567890123456789 (20 cols)
-            "....................", // 0
-            "....................", // 1
-            "....OOOOOOOOOOOO....", // 2 음식 두둑
-            "...OGGGGGGGGGGGGO...", // 3
-            "...OGgGGgGGgGGgGO...", // 4
-            "...OGGGGGGGGGGGGO...", // 5
-            "..OWGgGGgGGgGGgGWO..", // 6 접시 안쪽 림
-            ".OLLWWWWWWWWWWWWLLO.", // 7 접시
-            ".OLLLLLLLLLLLLLLLLO.", // 8
-            "..OLLLLLLLLLLLLLLO..", // 9
-            "...OOOOOOOOOOOOOO...", // 10
-            "....................", // 11
-            "....................", // 12
-            "....................", // 13
-            "....................", // 14
-            "....................", // 15
-        };
-
-        static Dictionary<char, Color32> FoodPalette(Color32 content, Color32 contentSh)
-        {
-            return new Dictionary<char, Color32>
-            {
-                ['O'] = Outline, ['T'] = Steam,
-                ['G'] = content, ['g'] = contentSh,
-                ['W'] = BowlLight, ['B'] = BowlBase, ['b'] = BowlSh,
-                ['L'] = BowlBase,
-            };
-        }
-
         static void BuildFoods()
         {
-            const int w = 20;
+            foreach (var (id, source) in FoodMap)
+            {
+                var tex = LoadReadableTexture(source);
+                var pixels = tex.GetPixels32();
+                int w = tex.width;
+                int h = tex.height;
+                Object.DestroyImmediate(tex);
 
-            // 돼지국밥 — 뽀얀 국물 + 파 + 고기
-            {
-                var px = FromMap(SoupBowlMap, w, FoodPalette(
-                    new Color32(233, 214, 184, 255), new Color32(210, 186, 150, 255)));
-                Garnish(px, w, 5, new Color32(98, 172, 82, 255), 5, 12);      // 파
-                Garnish(px, w, 4, new Color32(168, 122, 86, 255), 8, 14);     // 고기
-                WriteSprite($"{FoodIconsDir}/pork_gukbap.png", px, w);
-            }
-            // 소고기국밥 — 진한 국물 + 고기 + 파
-            {
-                var px = FromMap(SoupBowlMap, w, FoodPalette(
-                    new Color32(158, 92, 54, 255), new Color32(128, 70, 40, 255)));
-                Garnish(px, w, 4, new Color32(110, 58, 34, 255), 6, 12);      // 고기
-                Garnish(px, w, 5, new Color32(98, 172, 82, 255), 9, 14);      // 파
-                WriteSprite($"{FoodIconsDir}/beef_gukbap.png", px, w);
-            }
-            // 떡볶이 — 접시 + 빨간 소스 + 흰 떡
-            {
-                var px = FromMap(PlateMap, w, FoodPalette(
-                    new Color32(214, 54, 40, 255), new Color32(176, 38, 30, 255)));
-                var rice = new Color32(246, 240, 228, 255);
-                Garnish(px, w, 3, rice, 6, 10); Garnish(px, w, 3, rice, 13, 0);
-                Garnish(px, w, 4, rice, 8, 15); Garnish(px, w, 5, rice, 5, 11);
-                WriteSprite($"{FoodIconsDir}/tteokbokki.png", px, w);
-            }
-            // 김밥 — 접시 + 김 단면 (검정 링 + 흰 밥심)
-            {
-                var px = FromMap(PlateMap, w, FoodPalette(
-                    new Color32(52, 50, 50, 255), new Color32(38, 36, 36, 255)));
-                var rice = new Color32(246, 240, 228, 255);
-                var filling = new Color32(224, 142, 66, 255);
-                Garnish(px, w, 3, rice, 6, 10); Garnish(px, w, 3, rice, 14, 0);
-                Garnish(px, w, 4, rice, 8, 12); Garnish(px, w, 5, rice, 6, 15);
-                Garnish(px, w, 4, filling, 10, 0); Garnish(px, w, 5, filling, 11, 0);
-                WriteSprite($"{FoodIconsDir}/gimbap.png", px, w);
-            }
-            // 잔치국수 — 크림 면 + 지단 고명
-            {
-                var px = FromMap(SoupBowlMap, w, FoodPalette(
-                    new Color32(240, 230, 202, 255), new Color32(220, 206, 172, 255)));
-                Garnish(px, w, 4, new Color32(240, 202, 92, 255), 7, 12);     // 지단
-                Garnish(px, w, 5, new Color32(98, 172, 82, 255), 10, 15);     // 파
-                WriteSprite($"{FoodIconsDir}/janchi_guksu.png", px, w);
-            }
-            // 비빔국수 — 주황 양념 면 + 야채
-            {
-                var px = FromMap(SoupBowlMap, w, FoodPalette(
-                    new Color32(232, 118, 42, 255), new Color32(196, 92, 30, 255)));
-                Garnish(px, w, 4, new Color32(98, 172, 82, 255), 6, 13);      // 오이
-                Garnish(px, w, 5, new Color32(214, 54, 40, 255), 9, 15);      // 고추장 포인트
-                WriteSprite($"{FoodIconsDir}/bibim_guksu.png", px, w);
-            }
-        }
-
-        // ── 픽셀맵 유틸 ─────────────────────────────────────────────────────
-
-        /// <summary>문자열 맵(top→bottom) → 픽셀 배열(bottom-origin). 폭 불일치는 즉시 예외.</summary>
-        static Color32[] FromMap(string[] rows, int width, Dictionary<char, Color32> palette)
-        {
-            int height = rows.Length;
-            var px = new Color32[width * height];
-            for (int row = 0; row < height; row++)
-            {
-                if (rows[row].Length != width)
+                // 투명 여백 트림 (bottom-origin 픽셀 배열 기준 bounding box).
+                if (TryTrim(pixels, w, h, out var trimmed, out int tw, out int th))
                 {
-                    throw new System.InvalidOperationException(
-                        $"[PlaceholderArtBuilder] 픽셀맵 폭 불일치: row {row} = {rows[row].Length} (기대 {width})");
+                    WritePng($"{FoodIconsDir}/{id}.png", trimmed, tw, th);
                 }
-                int y = height - 1 - row;
-                for (int x = 0; x < width; x++)
+                else
                 {
-                    char ch = rows[row][x];
-                    px[y * width + x] = ch == '.' ? Clear
-                        : palette.TryGetValue(ch, out var color) ? color
-                        : throw new System.InvalidOperationException(
-                            $"[PlaceholderArtBuilder] 팔레트에 없는 문자 '{ch}' (row {row}, col {x})");
-                }
-            }
-            return px;
-        }
-
-        /// <summary>top 기준 row 좌표로 픽셀 설정 (맵 좌표계와 동일하게 액세서리를 얹는다).</summary>
-        static void SetTop(Color32[] px, int width, int x, int topRow, Color32 color)
-        {
-            int height = px.Length / width;
-            px[(height - 1 - topRow) * width + x] = color;
-        }
-
-        /// <summary>맵의 특정 row 에서 문자가 있던 자리만 다른 색으로 (모자 등 부분 recolor).</summary>
-        static void RecolorRow(Color32[] px, int width, string[] rows, int topRow, char target, Color32 color)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                if (rows[topRow][x] == target)
-                {
-                    SetTop(px, width, x, topRow, color);
+                    WritePng($"{FoodIconsDir}/{id}.png", pixels, w, h);
                 }
             }
         }
 
-        /// <summary>내용물 위 고명 점 2px (x, x2). x2=0 이면 한 점만.</summary>
-        static void Garnish(Color32[] px, int width, int topRow, Color32 color, int x, int x2)
+        // ════════════════════════════════════════════════════════════════════
+        // 무대 타일 — Kenney Roguelike/RPG 시트에서 바닥/카운터 16×16 타일 추출 (순수 장식)
+        // ════════════════════════════════════════════════════════════════════
+        static void BuildStageTiles()
         {
-            SetTop(px, width, x, topRow, color);
-            if (x2 > 0)
+            var sheet = LoadReadableTexture(KenneySheet);
+            var px = sheet.GetPixels32();
+            int w = sheet.width, h = sheet.height;
+            Object.DestroyImmediate(sheet);
+
+            WritePng(FloorTilePath, KenneyTilePixels(px, w, h, FloorTileCell), KenneyTile, KenneyTile);
+            WritePng(CounterTilePath, KenneyTilePixels(px, w, h, CounterTileCell), KenneyTile, KenneyTile);
+        }
+
+        /// <summary>Kenney 시트(bottom-origin 픽셀)에서 (col,row) 타일을 잘라낸다. row 는 PIL top-origin 그리드.</summary>
+        static Color32[] KenneyTilePixels(Color32[] px, int w, int h, (int col, int row) cell)
+        {
+            int x = cell.col * KenneyStride;
+            int topY = cell.row * KenneyStride;              // PIL top-origin y
+            int y = h - topY - KenneyTile;                   // bottom-origin y
+            return Region(px, w, h, x, y, KenneyTile, KenneyTile);
+        }
+
+        // ── 텍스처 로드/픽셀 유틸 ────────────────────────────────────────────
+
+        /// <summary>bottom-origin 픽셀 배열에서 (x,y) 오프셋의 w×h 영역을 잘라 새 배열로.</summary>
+        static Color32[] Region(Color32[] src, int srcW, int srcH, int x, int y, int w, int h)
+        {
+            if (x < 0 || y < 0 || x + w > srcW || y + h > srcH)
             {
-                SetTop(px, width, x2, topRow, color);
+                throw new System.InvalidOperationException(
+                    $"[PlaceholderArtBuilder] Region 범위 초과: ({x},{y},{w},{h}) in {srcW}×{srcH}");
             }
+            var outPx = new Color32[w * h];
+            for (int row = 0; row < h; row++)
+            {
+                for (int col = 0; col < w; col++)
+                {
+                    outPx[row * w + col] = src[(y + row) * srcW + (x + col)];
+                }
+            }
+            return outPx;
+        }
+
+        /// <summary>임포트 설정과 무관하게 readable 텍스처를 얻는다 (원본 PNG 바이트 직접 디코딩).</summary>
+        static Texture2D LoadReadableTexture(string assetPath)
+        {
+            string full = Path.GetFullPath(assetPath);
+            if (!File.Exists(full))
+            {
+                throw new FileNotFoundException($"[PlaceholderArtBuilder] OpenSource 소스 PNG 누락: {assetPath}", full);
+            }
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!tex.LoadImage(File.ReadAllBytes(full)))
+            {
+                Object.DestroyImmediate(tex);
+                throw new System.InvalidOperationException($"[PlaceholderArtBuilder] PNG 디코딩 실패: {assetPath}");
+            }
+            return tex;
+        }
+
+        /// <summary>투명 픽셀을 제거한 최소 bounding box 를 반환. 전부 투명이면 false.</summary>
+        static bool TryTrim(Color32[] src, int w, int h, out Color32[] outPx, out int outW, out int outH)
+        {
+            int minX = w, minY = h, maxX = -1, maxY = -1;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (src[y * w + x].a != 0)
+                    {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < 0)
+            {
+                outPx = null; outW = 0; outH = 0;
+                return false;
+            }
+            outW = maxX - minX + 1;
+            outH = maxY - minY + 1;
+            if (outW == w && outH == h)
+            {
+                outPx = null;
+                return false; // 트림 불필요
+            }
+            outPx = new Color32[outW * outH];
+            for (int y = 0; y < outH; y++)
+            {
+                for (int x = 0; x < outW; x++)
+                {
+                    outPx[y * outW + x] = src[(minY + y) * w + (minX + x)];
+                }
+            }
+            return true;
         }
 
         // ── 파일 쓰기/임포트 ────────────────────────────────────────────────
@@ -368,16 +297,15 @@ namespace ClientIsKing.EditorTools
             }
         }
 
-        static void WriteSprite(string path, Color32[] pixels, int width)
+        static void WritePng(string path, Color32[] pixels, int width, int height)
         {
-            int height = pixels.Length / width;
             var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
             tex.SetPixels32(pixels);
             tex.Apply();
             byte[] bytes = tex.EncodeToPNG();
             Object.DestroyImmediate(tex);
 
-            // 바이트 동일하면 재기록하지 않는다 (임포트/GUID 안정)
+            // 바이트 동일하면 재기록하지 않는다 (임포트/GUID 안정 — 멱등)
             if (File.Exists(path))
             {
                 var existing = File.ReadAllBytes(path);

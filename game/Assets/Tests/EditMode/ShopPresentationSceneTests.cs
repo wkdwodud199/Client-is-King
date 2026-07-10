@@ -65,6 +65,54 @@ namespace ClientIsKing.Tests.EditMode
         }
 
         [Test]
+        public void WalkFrames_Injected_For_All_Customers()
+        {
+            Assert.IsNotNull(controller);
+            foreach (var entry in controller.CustomerSprites)
+            {
+                Assert.IsNotNull(entry.walkFrames, $"{entry.customerId}: walkFrames 누락");
+                Assert.AreEqual(4, entry.walkFrames.Length, $"{entry.customerId}: 우향 walk 4프레임 (task-109)");
+                foreach (var frame in entry.walkFrames)
+                {
+                    Assert.IsNotNull(frame, $"{entry.customerId}: walk 프레임 스프라이트 누락");
+                }
+            }
+        }
+
+        [Test]
+        public void Empty_WalkFrames_Falls_Back_To_Single_Sprite_Without_Exception()
+        {
+            Assert.IsNotNull(controller);
+            // walkFrames 가 비어 있어도 단일 sprite 로 폴백해 예외가 나면 안 된다 (EditMode 즉시 스냅 경로).
+            var args = new ServicePresentationEventArgs(
+                true, 1, 1, 5, "student", "pork_gukbap", 2, false, false, 0, "학생");
+            Assert.DoesNotThrow(() => controller.HandleOrderPresented(args),
+                "walkFrames 유무와 무관하게 입장 처리는 예외 없이 진행");
+        }
+
+        [Test]
+        public void Stage_Has_Tiles_And_Decorative_Props()
+        {
+            // Kenney 타일 배경/카운터가 스프라이트로 교체됐고, 순수 장식 소품이 배치됐다 (task-109).
+            var backdrop = stage.Find("Stage_Backdrop").GetComponent<Image>();
+            var counter = stage.Find("Stage_Counter").GetComponent<Image>();
+            Assert.IsNotNull(backdrop.sprite, "Stage_Backdrop 타일 스프라이트 누락");
+            Assert.IsNotNull(counter.sprite, "Stage_Counter 타일 스프라이트 누락");
+
+            int props = 0;
+            foreach (var name in new[] { "Prop_BowlLeft", "Prop_BowlMid", "Prop_BowlRight" })
+            {
+                var prop = stage.Find(name);
+                if (prop != null)
+                {
+                    Assert.IsFalse(prop.GetComponent<Image>().raycastTarget, $"{name}: 장식은 클릭을 막지 않는다");
+                    props++;
+                }
+            }
+            Assert.GreaterOrEqual(props, 2, "순수 장식 소품 2~3개");
+        }
+
+        [Test]
         public void NightOverlay_Starts_Transparent_And_Never_Blocks_Clicks()
         {
             var overlay = canvas.Find("NightOverlay").GetComponent<Image>();
