@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
 using ClientIsKing.Genre;
@@ -542,6 +543,246 @@ namespace ClientIsKing.Tests.EditMode
             {
                 Assert.AreEqual(modifierA.WeightBoosts[i].CustomerId, modifierB.WeightBoosts[i].CustomerId);
                 Assert.AreEqual(modifierA.WeightBoosts[i].BoostMilli, modifierB.WeightBoosts[i].BoostMilli);
+            }
+        }
+
+        // ── Codex 리뷰 001: 매칭 def 의 audience row 무결성 검증 (history→DayModifier 경로) ──
+
+        [Test]
+        public void TryBuildDayModifier_Matched_Def_With_Duplicate_Audience_Row_Is_Explicit_Failure()
+        {
+            var corruptDef = new SNSCampaignDefInput
+            {
+                Id = "photo_feed",
+                DisplayName = "픽쳐그램",
+                BaseCost = 15000,
+                BaseReach = 0.25f,
+                RepeatDecay = 0.85f,
+                AudienceAffinities = new List<SNSRawAffinityInput>
+                {
+                    new SNSRawAffinityInput(AgeBand.Twenties, GenderTarget.Female, 1.5f),
+                    new SNSRawAffinityInput(AgeBand.Twenties, GenderTarget.Female, 1.9f), // 중복 (AgeBand,Gender)
+                },
+            };
+            var history = new List<SNSCampaignRecord>
+            {
+                new SNSCampaignRecord { campaignId = "photo_feed", executedOnDay = 1, bonusOrderCount = 2, followerGain = 25 },
+            };
+
+            bool ok = SNSCampaignOps.TryBuildDayModifier(
+                history, 2, new List<SNSCampaignDefInput> { corruptDef }, SeedCustomers(),
+                out var modifier, out var reason);
+
+            Assert.IsFalse(ok, "catalog 의 매칭 def 가 중복 audience row 를 가지면 명시적으로 실패해야 한다 (조용한 max-매칭 금지)");
+            Assert.IsNull(modifier);
+            Assert.IsNotEmpty(reason);
+        }
+
+        [Test]
+        public void TryBuildDayModifier_Matched_Def_With_Invalid_Multiplier_Is_Explicit_Failure()
+        {
+            foreach (var bad in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+            {
+                var corruptDef = new SNSCampaignDefInput
+                {
+                    Id = "short_form",
+                    DisplayName = "숏핑",
+                    BaseCost = 12000,
+                    BaseReach = 0.30f,
+                    RepeatDecay = 0.80f,
+                    AudienceAffinities = new List<SNSRawAffinityInput>
+                    {
+                        new SNSRawAffinityInput(AgeBand.Teens, GenderTarget.All, bad),
+                    },
+                };
+                var history = new List<SNSCampaignRecord>
+                {
+                    new SNSCampaignRecord { campaignId = "short_form", executedOnDay = 1, bonusOrderCount = 1, followerGain = 30 },
+                };
+
+                bool ok = SNSCampaignOps.TryBuildDayModifier(
+                    history, 2, new List<SNSCampaignDefInput> { corruptDef }, SeedCustomers(),
+                    out var modifier, out var reason);
+
+                Assert.IsFalse(ok, $"multiplier={bad} 인 매칭 def 는 명시적으로 실패해야 한다");
+                Assert.IsNull(modifier);
+                Assert.IsNotEmpty(reason);
+            }
+        }
+
+        [Test]
+        public void TryBuildDayModifier_Matched_Def_With_Null_Audience_List_Does_Not_Throw()
+        {
+            var nullListDef = new SNSCampaignDefInput
+            {
+                Id = "local_board",
+                DisplayName = "동네게시판",
+                BaseCost = 7000,
+                BaseReach = 0.15f,
+                RepeatDecay = 0.90f,
+                AudienceAffinities = null,
+            };
+            var history = new List<SNSCampaignRecord>
+            {
+                new SNSCampaignRecord { campaignId = "local_board", executedOnDay = 1, bonusOrderCount = 1, followerGain = 15 },
+            };
+
+            // AudienceAffinities == null 은 "타겟 없음"(전 고객 중립)으로 유효하다 — IsDefInvalid 의 다른
+            // 항목(cost/reach/decay)이 전부 정상이면 실패가 아니라 boost 전부 1000(중립)인 modifier 를 만든다.
+            bool ok = SNSCampaignOps.TryBuildDayModifier(
+                history, 2, new List<SNSCampaignDefInput> { nullListDef }, SeedCustomers(),
+                out var modifier, out var reason);
+
+            Assert.IsTrue(ok, reason);
+            Assert.AreEqual(SeedCustomers().Count, modifier.WeightBoosts.Count);
+            foreach (var boost in modifier.WeightBoosts)
+            {
+                Assert.AreEqual(1000, boost.BoostMilli, $"{boost.CustomerId} 는 타겟 없음이므로 중립 배수여야 한다");
+            }
+        }
+
+        [Test]
+        public void TryBuildDayModifier_Matched_Def_Corruption_Leaves_History_Unchanged()
+        {
+            var corruptDef = new SNSCampaignDefInput
+            {
+                Id = "photo_feed",
+                DisplayName = "픽쳐그램",
+                BaseCost = 15000,
+                BaseReach = 0.25f,
+                RepeatDecay = 0.85f,
+                AudienceAffinities = new List<SNSRawAffinityInput>
+                {
+                    new SNSRawAffinityInput(AgeBand.Twenties, GenderTarget.Female, 1.5f),
+                    new SNSRawAffinityInput(AgeBand.Twenties, GenderTarget.Female, 1.9f),
+                },
+            };
+            var record = new SNSCampaignRecord { campaignId = "photo_feed", executedOnDay = 1, bonusOrderCount = 2, followerGain = 25 };
+            var history = new List<SNSCampaignRecord> { record };
+
+            SNSCampaignOps.TryBuildDayModifier(
+                history, 2, new List<SNSCampaignDefInput> { corruptDef }, SeedCustomers(), out _, out _);
+
+            Assert.AreEqual(1, history.Count, "실패 경로는 history 를 건드리지 않아야 한다");
+            Assert.AreSame(record, history[0], "실패 경로는 기존 레코드를 교체하지 않아야 한다");
+            Assert.AreEqual(2, record.bonusOrderCount, "실패 경로는 레코드 필드를 바꾸지 않아야 한다");
+        }
+    }
+
+    /// <summary>
+    /// Codex 리뷰 001: design.md 테스트 기준 — GameState 를 JsonUtility 로 ToJson→FromJson 왕복한 뒤
+    /// snsCampaignHistory 기반 TryBuildDayPlan 결과가 왕복 전과 field-by-field 동일해야 한다(저장 후
+    /// 재개 동일성, task-113 선행 보증). 실제 ServiceManager.TryBuildDayPlan 을 그대로 호출한다(재계산 없음).
+    /// </summary>
+    public class SNSJsonRoundTripTests
+    {
+        [Test]
+        public void TryBuildDayPlan_Result_Is_Identical_Before_And_After_JsonUtility_RoundTrip()
+        {
+            var gameManagerGo = TestSceneSupport.OpenShopSceneWithLiveSingletons();
+            var gm = gameManagerGo.GetComponent<ClientIsKing.Managers.GameManager>();
+            gm.StartNewGame();
+
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "bunsik", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+            gm.State.currentPhase = ClientIsKing.DayCycle.DayPhase.Night; // 집행 게이트(E1)를 만족시킨다
+            Assert.IsTrue(service.TryExecuteSnsCampaign("short_form", out var execResult), execResult.Message);
+            gm.State.day = 2; // 익일 plan 이 어제 집행 효과를 싣도록 진행
+
+            bool okBefore = service.TryBuildDayPlan(
+                gm.GenreCatalog.First(g => g.Id == "bunsik"), out var planBefore, out var reasonBefore);
+            Assert.IsTrue(okBefore, reasonBefore);
+            Assert.Greater(planBefore.BonusOrderCount, 0, "왕복 전 plan 에 SNS 보너스가 있어야 시나리오가 성립한다");
+
+            // ToJson→FromJsonOverwrite 왕복 — GameState 는 public 필드만의 순수 클래스이므로 참조를 바꾸지
+            // 않고 같은 인스턴스 위에 왕복 결과를 덮어써 GameManager.State(읽기 전용 프로퍼티)를 그대로 쓴다.
+            string json = UnityEngine.JsonUtility.ToJson(gm.State);
+            UnityEngine.JsonUtility.FromJsonOverwrite(json, gm.State);
+
+            bool okAfter = service.TryBuildDayPlan(
+                gm.GenreCatalog.First(g => g.Id == "bunsik"), out var planAfter, out var reasonAfter);
+            Assert.IsTrue(okAfter, reasonAfter);
+
+            Assert.AreEqual(planBefore.GenreId, planAfter.GenreId);
+            Assert.AreEqual(planBefore.Day, planAfter.Day);
+            Assert.AreEqual(planBefore.BaseOrderCount, planAfter.BaseOrderCount);
+            Assert.AreEqual(planBefore.BonusOrderCount, planAfter.BonusOrderCount);
+            Assert.AreEqual(planBefore.OrderCount, planAfter.OrderCount);
+            Assert.AreEqual(planBefore.SourceCampaignId, planAfter.SourceCampaignId);
+            Assert.AreEqual(planBefore.MinPricePerCustomer, planAfter.MinPricePerCustomer);
+            Assert.AreEqual(planBefore.MaxPricePerCustomer, planAfter.MaxPricePerCustomer);
+            CollectionAssert.AreEqual(planBefore.AllowedRecipeIds, planAfter.AllowedRecipeIds);
+            CollectionAssert.AreEqual(planBefore.TopCustomerIds, planAfter.TopCustomerIds);
+
+            Assert.AreEqual(planBefore.CustomerWeights.Count, planAfter.CustomerWeights.Count);
+            for (int i = 0; i < planBefore.CustomerWeights.Count; i++)
+            {
+                Assert.AreEqual(planBefore.CustomerWeights[i].CustomerId, planAfter.CustomerWeights[i].CustomerId);
+                Assert.AreEqual(planBefore.CustomerWeights[i].MilliWeight, planAfter.CustomerWeights[i].MilliWeight);
+            }
+            Assert.AreEqual(planBefore.BonusCustomerWeights.Count, planAfter.BonusCustomerWeights.Count);
+            for (int i = 0; i < planBefore.BonusCustomerWeights.Count; i++)
+            {
+                Assert.AreEqual(planBefore.BonusCustomerWeights[i].CustomerId, planAfter.BonusCustomerWeights[i].CustomerId);
+                Assert.AreEqual(planBefore.BonusCustomerWeights[i].MilliWeight, planAfter.BonusCustomerWeights[i].MilliWeight);
+            }
+
+            // 주문 순서(recipe/customer/파티/태그)까지 완전 동일해야 저장 후 재개 동일성이 실질적으로 보장된다.
+            for (int i = 0; i < planBefore.OrderCount; i++)
+            {
+                Assert.AreEqual(
+                    ClientIsKing.Genre.GenreSelectionOps.PickRecipeId(planBefore, i),
+                    ClientIsKing.Genre.GenreSelectionOps.PickRecipeId(planAfter, i), $"주문 {i} recipe");
+                Assert.AreEqual(
+                    ClientIsKing.Genre.GenreSelectionOps.PickCustomerId(planBefore, i),
+                    ClientIsKing.Genre.GenreSelectionOps.PickCustomerId(planAfter, i), $"주문 {i} customer");
+                bool taggedBefore = i >= planBefore.BaseOrderCount;
+                bool taggedAfter = i >= planAfter.BaseOrderCount;
+                Assert.AreEqual(taggedBefore, taggedAfter, $"주문 {i} snsInflow 태그");
+            }
+        }
+
+        [Test]
+        public void SnsCampaignHistory_Survives_JsonUtility_RoundTrip_Field_By_Field()
+        {
+            // TryBuildDayPlan 왕복 동일성의 원천 데이터인 snsCampaignHistory 자체도 직렬화 손실이 없어야 한다.
+            var state = new ClientIsKing.DayCycle.GameState();
+            state.snsCampaignHistory.Add(new SNSCampaignRecord
+            {
+                campaignId = "local_board",
+                executedOnDay = 1,
+                costPaid = 7000,
+                effectiveMilliReach = 150,
+                bonusOrderCount = 1,
+                followerGain = 15,
+            });
+            state.snsCampaignHistory.Add(new SNSCampaignRecord
+            {
+                campaignId = "photo_feed",
+                executedOnDay = 2,
+                costPaid = 15000,
+                effectiveMilliReach = 213,
+                bonusOrderCount = 1,
+                followerGain = 21,
+            });
+
+            string json = UnityEngine.JsonUtility.ToJson(state);
+            var restored = UnityEngine.JsonUtility.FromJson<ClientIsKing.DayCycle.GameState>(json);
+
+            Assert.AreEqual(state.snsCampaignHistory.Count, restored.snsCampaignHistory.Count);
+            for (int i = 0; i < state.snsCampaignHistory.Count; i++)
+            {
+                var a = state.snsCampaignHistory[i];
+                var b = restored.snsCampaignHistory[i];
+                Assert.AreEqual(a.campaignId, b.campaignId, $"레코드 {i} campaignId");
+                Assert.AreEqual(a.executedOnDay, b.executedOnDay, $"레코드 {i} executedOnDay");
+                Assert.AreEqual(a.costPaid, b.costPaid, $"레코드 {i} costPaid");
+                Assert.AreEqual(a.effectiveMilliReach, b.effectiveMilliReach, $"레코드 {i} effectiveMilliReach");
+                Assert.AreEqual(a.bonusOrderCount, b.bonusOrderCount, $"레코드 {i} bonusOrderCount");
+                Assert.AreEqual(a.followerGain, b.followerGain, $"레코드 {i} followerGain");
             }
         }
     }

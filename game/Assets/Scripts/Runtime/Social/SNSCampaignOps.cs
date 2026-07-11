@@ -163,12 +163,15 @@ namespace ClientIsKing.Social
                 failReason = "잘못된 SNS 캠페인 정의입니다.";
                 return true;
             }
-            foreach (var row in def.AudienceAffinities)
+            if (def.AudienceAffinities != null)
             {
-                if (row.Multiplier <= 0f || float.IsNaN(row.Multiplier) || float.IsInfinity(row.Multiplier))
+                foreach (var row in def.AudienceAffinities)
                 {
-                    failReason = "잘못된 SNS 캠페인 정의입니다.";
-                    return true;
+                    if (row.Multiplier <= 0f || float.IsNaN(row.Multiplier) || float.IsInfinity(row.Multiplier))
+                    {
+                        failReason = "잘못된 SNS 캠페인 정의입니다.";
+                        return true;
+                    }
                 }
             }
             if (HasDuplicateAudienceRow(ProjectAffinityRows(def.AudienceAffinities)))
@@ -466,6 +469,13 @@ namespace ClientIsKing.Social
             if (def == null)
             {
                 failReason = $"알 수 없는 SNS 캠페인 '{match.campaignId}' 기록입니다.";
+                return false;
+            }
+            // 저장 후 재개·catalog 변경으로 매칭 def 의 audience row 가 손상됐을 수 있다 — 집행/미리보기
+            // 경로와 동일한 IsDefInvalid 검증을 재사용해 중복 (AgeBand,Gender)·잘못된 multiplier 를
+            // 조용히 max-매칭으로 흘려보내지 않고 명시적으로 실패시킨다 (Codex 리뷰 001 반영).
+            if (IsDefInvalid(def, out failReason))
+            {
                 return false;
             }
             if (IsCustomersInvalid(customers, out failReason))
