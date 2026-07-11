@@ -27,5 +27,6 @@ MonoBehaviour:
     multiplier: 1.15
   - archetype: {fileID: 11400000, guid: 726a65a49cba3ee4384c13ae5f9e895f, type: 2}
     multiplier: 1.2
-  description: "\uADE0\uD615\uD615 \uBA74 \uC694\uB9AC. \uAC00\uC871\xB7\uC911\uC7A5\uB144\uC5D0\uAC8C
+  description: "\uADE0\uD615 \uC7A1\uD78C \uBA74 \uC694\uB9AC \u2014 \uC6D0\uAC00\xB7\uAC00\uACA9\xB7\uD68C\uC804\uC774
+    \uBAA8\uB450 \uC911\uAC04\uC774\uACE0 \uAC00\uC871\xB7\uC9C1\uC7A5\uC778\uC5D0\uAC8C
     \uACE0\uB8E8 \uC5B4\uD544\uD55C\uB2E4."

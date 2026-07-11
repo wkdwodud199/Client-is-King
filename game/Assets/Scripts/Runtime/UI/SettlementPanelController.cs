@@ -12,6 +12,8 @@ namespace ClientIsKing.UI
     /// Settlement phase 정산 UI — 패널 활성화 시 오늘 정산을 적용(멱등)하고 요약을 표시한다.
     /// task-108: 주요 숫자는 짧은 카운트업 연출 후 정확한 최종값으로 남고(설계 26단계),
     /// 렌더 직후 SettlementPresented 표현 이벤트를 발행한다. cash delta 규칙은 task-107 그대로.
+    /// task-110 (U4): 전문 분야가 원가·주문 수·매출에 미친 방식 한 줄을 표시만 추가한다 —
+    /// 정산 수학과 day 멱등성은 변경하지 않는다 (design.md D8/H15).
     /// </summary>
     public sealed class SettlementPanelController : MonoBehaviour
     {
@@ -21,6 +23,7 @@ namespace ClientIsKing.UI
         [SerializeField] private TMP_Text netText;
         [SerializeField] private TMP_Text cashText;
         [SerializeField] private TMP_Text statsText;
+        [SerializeField] private TMP_Text genreEffectText;
         [SerializeField] private TMP_Text messageText;
 
         private Coroutine countUpRoutine;
@@ -76,10 +79,27 @@ namespace ClientIsKing.UI
                     ? $"서빙 {state.serviceCustomersServedToday}명 · 이탈 {state.serviceCustomersMissedToday}명"
                     : "";
             }
+            if (genreEffectText != null)
+            {
+                genreEffectText.text = BuildGenreEffectLine();
+            }
             if (messageText != null)
             {
                 messageText.text = result.Message;
             }
+        }
+
+        /// <summary>전문 분야가 원가·주문 수·매출에 미친 방식 한 줄 — E3 비교 문구 공유 (표시 전용, D8).</summary>
+        private static string BuildGenreEffectLine()
+        {
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            if (state == null || string.IsNullOrEmpty(state.selectedGenreId)
+                || !gm.TryGetGenre(state.selectedGenreId, out var def))
+            {
+                return "";
+            }
+            return $"전문 분야 효과: {def.DisplayName} — {GenreSelectionCopy.Comparison(def.Id)}";
         }
 
         private void ApplyNumbers(int gross, int spend, int operating, int net, int cashBefore, int cashAfter)
@@ -130,10 +150,18 @@ namespace ClientIsKing.UI
         }
 
 #if UNITY_EDITOR
-        /// <summary>SceneBuilder 전용 참조 주입 (EditorInit 패턴).</summary>
+        /// <summary>SceneBuilder 전용 참조 주입 — 기존 시그니처 (genreEffectText 미배선 유지).</summary>
         internal void EditorInit(
             TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
             TMP_Text cashText, TMP_Text statsText, TMP_Text messageText)
+        {
+            EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText, null);
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입 — 전문 분야 효과 한 줄 포함 (task-110 U5 채택 대상).</summary>
+        internal void EditorInit(
+            TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
+            TMP_Text cashText, TMP_Text statsText, TMP_Text messageText, TMP_Text genreEffectText)
         {
             this.grossText = grossText;
             this.spendText = spendText;
@@ -142,6 +170,7 @@ namespace ClientIsKing.UI
             this.cashText = cashText;
             this.statsText = statsText;
             this.messageText = messageText;
+            this.genreEffectText = genreEffectText;
         }
 #endif
     }

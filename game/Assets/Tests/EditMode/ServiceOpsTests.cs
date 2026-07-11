@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Genre;
 using ClientIsKing.Inventory;
 using ClientIsKing.Service;
 using NUnit.Framework;
@@ -13,6 +14,7 @@ namespace ClientIsKing.Tests.EditMode
     /// <summary>
     /// task-106: 조리·서빙 핵심 규칙(ServiceOps) 검증 — 결정론적 주문 생성, 재료 계산/소비,
     /// 매출 트랜잭션, 실패 불변성, 등급 혼합 금지, 주문 포기 통계.
+    /// task-110 (U6): genre recipe 필터·plan 기반 주문 수·customer weight·장르 적용 가격을 추가한다.
     /// </summary>
     public class ServiceOpsTests
     {
@@ -285,6 +287,142 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, state.serviceCustomersServedToday);
             Assert.AreEqual(0, state.serviceCustomersMissedToday);
             Assert.IsNull(ServiceOps.GetCurrentOrder(state), "빈 주문 목록도 예외 없이 수용");
+        }
+
+        // ── task-110: 장르 적용 판매가 ────────────────────────────────────────
+
+        [Test]
+        public void CalculateSalePrice_With_Genre_Multiplier_Uses_RoundHalfUp()
+        {
+            var recipe = Recipe("pork_gukbap"); // basePrice 9000
+            int expected = (int)GenreSelectionOps.RoundHalfUp(9000.0 * 3 * 0.95);
+            Assert.AreEqual(expected, ServiceOps.CalculateSalePrice(recipe, 3, 0.95f));
+        }
+
+        [Test]
+        public void CalculateSalePrice_Neutral_Overload_Matches_Multiplier_1()
+        {
+            var recipe = Recipe("gimbap");
+            Assert.AreEqual(ServiceOps.CalculateSalePrice(recipe, 2, 1f), ServiceOps.CalculateSalePrice(recipe, 2),
+                "neutral overload 는 배수 1.0 경로와 같아야 한다");
+        }
+
+        [Test]
+        public void CalculateSalePrice_With_Invalid_Multiplier_Is_Zero()
+        {
+            var recipe = Recipe("gimbap");
+            Assert.AreEqual(0, ServiceOps.CalculateSalePrice(recipe, 2, 0f));
+            Assert.AreEqual(0, ServiceOps.CalculateSalePrice(recipe, 2, -1f));
+            Assert.AreEqual(0, ServiceOps.CalculateSalePrice(recipe, 2, float.NaN));
+            Assert.AreEqual(0, ServiceOps.CalculateSalePrice(recipe, 2, float.PositiveInfinity));
+        }
+
+        [Test]
+        public void TryServe_With_Genre_Input_Applies_Genre_Price_To_Cash_And_Revenue()
+        {
+            var recipe = Recipe("pork_gukbap");
+            var state = StateWithOrder(recipe, partySize: 2);
+            InventoryOps.Add(state, IngredientKind.Pork, IngredientGrade.C, 4);
+            InventoryOps.Add(state, IngredientKind.Rice, IngredientGrade.C, 2);
+            InventoryOps.Add(state, IngredientKind.Vegetable, IngredientGrade.C, 2);
+
+            var genreDef = LoadAll<GenreDef>("Assets/Data/Definitions/Genres").First(g => g.Id == "gukbap");
+            var genreInput = new GenreDefInput
+            {
+                Id = genreDef.Id,
+                IsGeneralist = false,
+                CookTimeMultiplier = genreDef.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genreDef.PricePerCustomerMultiplier,
+            };
+            int expectedPrice = ServiceOps.CalculateSalePrice(recipe, 2, genreDef.PricePerCustomerMultiplier);
+
+            var result = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C, genreInput);
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(expectedPrice, result.RevenueGained);
+            Assert.AreEqual(GameState.StartingCash + expectedPrice, state.cash);
+            Assert.AreEqual(expectedPrice, state.serviceRevenueToday);
+        }
+
+        [Test]
+        public void TryServe_With_Null_Genre_Input_Falls_Back_To_Neutral()
+        {
+            var recipe = Recipe("gimbap");
+            var state = StateWithOrder(recipe, partySize: 1);
+            InventoryOps.Add(state, IngredientKind.Rice, IngredientGrade.C, 1);
+            InventoryOps.Add(state, IngredientKind.Seaweed, IngredientGrade.C, 1);
+            InventoryOps.Add(state, IngredientKind.Vegetable, IngredientGrade.C, 1);
+
+            var result = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C, (GenreDefInput)null);
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(recipe.BasePrice, result.RevenueGained, "null genre 는 neutral(배수 1.0) 로 처리");
+        }
+
+        // ── task-110: genre 기반 plan → 주문 (recipe 필터·주문 수·customer weight) ──
+
+        [Test]
+        public void BuildOrders_From_Plan_Never_Uses_Other_Genre_Recipes()
+        {
+            var genreDef = LoadAll<GenreDef>("Assets/Data/Definitions/Genres").First(g => g.Id == "bunsik");
+            var recipes = Recipes;
+            var customers = Customers;
+
+            var genreInput = new GenreDefInput
+            {
+                Id = genreDef.Id,
+                IsGeneralist = false,
+                CookTimeMultiplier = genreDef.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genreDef.PricePerCustomerMultiplier,
+                CustomerAffinities = genreDef.CustomerAffinities
+                    .Select(a => new GenreAffinityInput(a.Archetype.Id, a.Multiplier)).ToList(),
+            };
+            var recipeInputs = recipes.Select(r => new RecipeDefInput { Id = r.Id, GenreId = r.Genre.Id, BasePrice = r.BasePrice }).ToList();
+            var customerInputs = customers.Select(c => new CustomerDefInput { Id = c.Id, BaseSpawnWeight = c.BaseSpawnWeight }).ToList();
+
+            Assert.IsTrue(GenreSelectionOps.TryBuildDemandPlan(genreInput, 5, recipeInputs, customerInputs, out var plan, out var reason), reason);
+            Assert.AreEqual(6, plan.OrderCount, "분식 orderCount 는 시드 조건에서 6건");
+
+            var orders = ServiceOps.BuildOrders(plan, customers);
+            Assert.AreEqual(6, orders.Count);
+            foreach (var order in orders)
+            {
+                Assert.IsTrue(order.recipeId == "tteokbokki" || order.recipeId == "gimbap",
+                    $"분식 plan 주문에 다른 장르 recipe 가 섞임: {order.recipeId}");
+            }
+        }
+
+        [Test]
+        public void BuildOrders_From_Plan_Is_Deterministic()
+        {
+            var genreDef = LoadAll<GenreDef>("Assets/Data/Definitions/Genres").First(g => g.Id == "noodles");
+            var recipes = Recipes;
+            var customers = Customers;
+
+            var genreInput = new GenreDefInput
+            {
+                Id = genreDef.Id,
+                IsGeneralist = false,
+                CookTimeMultiplier = genreDef.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genreDef.PricePerCustomerMultiplier,
+                CustomerAffinities = genreDef.CustomerAffinities
+                    .Select(a => new GenreAffinityInput(a.Archetype.Id, a.Multiplier)).ToList(),
+            };
+            var recipeInputs = recipes.Select(r => new RecipeDefInput { Id = r.Id, GenreId = r.Genre.Id, BasePrice = r.BasePrice }).ToList();
+            var customerInputs = customers.Select(c => new CustomerDefInput { Id = c.Id, BaseSpawnWeight = c.BaseSpawnWeight }).ToList();
+
+            GenreSelectionOps.TryBuildDemandPlan(genreInput, 7, recipeInputs, customerInputs, out var planA, out _);
+            GenreSelectionOps.TryBuildDemandPlan(genreInput, 7, recipeInputs, customerInputs, out var planB, out _);
+            var ordersA = ServiceOps.BuildOrders(planA, customers);
+            var ordersB = ServiceOps.BuildOrders(planB, customers);
+
+            Assert.AreEqual(ordersA.Count, ordersB.Count);
+            for (int i = 0; i < ordersA.Count; i++)
+            {
+                Assert.AreEqual(ordersA[i].recipeId, ordersB[i].recipeId, $"주문 {i} recipeId 결정론");
+                Assert.AreEqual(ordersA[i].customerId, ordersB[i].customerId, $"주문 {i} customerId 결정론");
+                Assert.AreEqual(ordersA[i].partySize, ordersB[i].partySize, $"주문 {i} partySize 결정론");
+            }
         }
     }
 }

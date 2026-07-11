@@ -51,7 +51,17 @@ namespace ClientIsKing.Economy
             {
                 return new PurchaseResult(false, "게임 상태가 초기화되지 않았습니다.", 0, 0, 0);
             }
-            return EconomyOps.TryPurchaseIngredient(state, def, quantity);
+            // task-110: 전문 분야 미선택/미존재 genre 는 현금·재고·marketSpend 불변 실패 (design.md D5/G3).
+            if (string.IsNullOrEmpty(state.selectedGenreId))
+            {
+                return new PurchaseResult(false, "먼저 전문 분야를 선택하세요.", 0, state.cash, 0);
+            }
+            var gm = GameManager.Instance;
+            if (gm == null || !gm.TryGetGenre(state.selectedGenreId, out var genre))
+            {
+                return new PurchaseResult(false, "선택된 전문 분야를 찾을 수 없습니다.", 0, state.cash, 0);
+            }
+            return EconomyOps.TryPurchaseIngredient(state, def, quantity, genre.CostMultiplier);
         }
     }
 }

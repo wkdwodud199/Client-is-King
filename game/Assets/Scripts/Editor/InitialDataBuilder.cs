@@ -145,24 +145,28 @@ namespace ClientIsKing.EditorTools
         }
 
         // ── 장르 4 = 3종 + 제네럴리스트 ─────────────────────────────────────
+        // task-110 승인 seed (design.md D5 고정 — 구현 중 임의 재밸런싱 금지):
+        // 국밥 (1.15, 1.20, 0.95) / 분식 (0.85, 0.80, 1.05) / 면류 (0.95, 1.00, 0.95) / 제네럴리스트 (1, 1, 1).
+        // price 배수가 직관과 반대로 보이는 이유는 recipe base price 가 이미 장르별로 다르기 때문이다.
+        // description 은 E3 headline/비교/forecast 문구와 정합하게 유지한다.
         static Dictionary<GenreKind, GenreDef> BuildGenres(Dictionary<string, CustomerArchetypeDef> customers)
         {
             var map = new Dictionary<GenreKind, GenreDef>();
             (string id, string name, GenreKind kind, float cost, float time, float price,
              (string archetypeId, float mult)[] affinities, string desc)[] rows =
             {
-                ("gukbap", "국밥", GenreKind.Gukbap, 1.15f, 1.2f, 1.25f,
+                ("gukbap", "국밥", GenreKind.Gukbap, 1.15f, 1.2f, 0.95f,
                     new[] { ("student", 0.7f), ("office_worker", 1.0f), ("family_parent", 1.0f), ("senior_regular", 1.5f) },
-                    "진한 국물과 높은 객단가. 원가·조리 시간이 무겁지만 중장년 단골이 탄탄하다."),
-                ("bunsik", "분식", GenreKind.Bunsik, 0.85f, 0.8f, 0.75f,
+                    "진한 국물 한 그릇 — 원가와 조리가 무겁지만 1인 가격이 높고 중장년 단골이 탄탄하다."),
+                ("bunsik", "분식", GenreKind.Bunsik, 0.85f, 0.8f, 1.05f,
                     new[] { ("student", 1.5f), ("office_worker", 1.1f), ("family_parent", 1.0f), ("senior_regular", 0.6f) },
-                    "저렴하고 빠르다. 회전율로 승부하며 젊은 층 유입이 강하다."),
+                    "싸고 빠르게 도는 분식 — 원가가 낮고 주문이 많아 젊은 층 유입이 강하다."),
                 ("noodles", "면류", GenreKind.Noodles, 0.95f, 1.0f, 0.95f,
                     new[] { ("student", 0.9f), ("office_worker", 1.0f), ("family_parent", 1.15f), ("senior_regular", 1.2f) },
-                    "균형형 면 요리. 가족·중장년에게 고루 어필한다."),
+                    "균형 잡힌 면 요리 — 원가·가격·회전이 모두 중간이고 가족·직장인에게 고루 어필한다."),
                 ("generalist", "제네럴리스트", GenreKind.Generalist, 1f, 1f, 1f,
                     new[] { ("student", 1.0f), ("office_worker", 1.0f), ("family_parent", 1.0f), ("senior_regular", 1.0f) },
-                    "특화 없는 균형 선택지. 레시피의 직접 장르로는 쓰지 않는다 (task-108 장르 선택에서 사용)."),
+                    "특화 없는 균형 선택지 — 장르 배수 없이 데모 레시피 6종 전체를 다룬다. 레시피의 직접 장르로는 쓰지 않는다."),
             };
             foreach (var r in rows)
             {

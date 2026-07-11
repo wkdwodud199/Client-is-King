@@ -17,7 +17,7 @@ MonoBehaviour:
   kind: 1
   costMultiplier: 0.85
   cookTimeMultiplier: 0.8
-  pricePerCustomerMultiplier: 0.75
+  pricePerCustomerMultiplier: 1.05
   customerAffinities:
   - archetype: {fileID: 11400000, guid: f606ca4bcc3380745a53f6d6090e3839, type: 2}
     multiplier: 1.5
@@ -27,5 +27,6 @@ MonoBehaviour:
     multiplier: 1
   - archetype: {fileID: 11400000, guid: 726a65a49cba3ee4384c13ae5f9e895f, type: 2}
     multiplier: 0.6
-  description: "\uC800\uB834\uD558\uACE0 \uBE60\uB974\uB2E4. \uD68C\uC804\uC728\uB85C
-    \uC2B9\uBD80\uD558\uBA70 \uC80A\uC740 \uCE35 \uC720\uC785\uC774 \uAC15\uD558\uB2E4."
+  description: "\uC2F8\uACE0 \uBE60\uB974\uAC8C \uB3C4\uB294 \uBD84\uC2DD \u2014
+    \uC6D0\uAC00\uAC00 \uB0AE\uACE0 \uC8FC\uBB38\uC774 \uB9CE\uC544 \uC80A\uC740
+    \uCE35 \uC720\uC785\uC774 \uAC15\uD558\uB2E4."

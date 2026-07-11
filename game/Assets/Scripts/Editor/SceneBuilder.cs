@@ -42,6 +42,12 @@ namespace ClientIsKing.EditorTools
         static readonly Vector2 PhasePanelPos = new Vector2(0f, -80f);
         static readonly Vector2 PhasePanelSize = new Vector2(480f, 200f);
 
+        // 기준 팔레트 (task-110 design.md F2 hex 고정)
+        static readonly Color32 InkNavy = new Color32(0x16, 0x20, 0x2A, 0xFF);
+        static readonly Color32 NightBlue = new Color32(0x25, 0x3B, 0x56, 0xFF);
+        static readonly Color32 SteamCream = new Color32(0xF4, 0xE5, 0xC2, 0xFF);
+        static readonly Color32 GochujangRed = new Color32(0xD3, 0x4A, 0x3A, 0xFF);
+
         public static void Apply()
         {
             if (!AssetDatabase.IsValidFolder(ScenesDir))
@@ -100,21 +106,31 @@ namespace ClientIsKing.EditorTools
             // Market 패널(task-105)이 하단을 차지하므로 진행 버튼은 우상단으로 (겹침 방지).
             var advanceButton = CreateButton(canvasGo.transform, "AdvanceButton", "다음 단계 ▶",
                 new Vector2(250f, 150f), new Vector2(140f, 36f));
+            // HUD 전문 분야 badge — DayPhaseText 와 AdvanceButton 사이 (task-110 E3 좌표 고정).
+            var genreBadge = CreateText(canvasGo.transform, "GenreBadge", "", 12f,
+                new Vector2(80f, 150f), new Vector2(150f, 30f));
+
+            // 장르 선택 modal (task-110 E3) — 참조는 이 unit 에서 최종 wiring 하고,
+            // 렌더/raycast 는 canvas 마지막 자식으로 최상단 배치한다 (아래 SetAsLastSibling).
+            var genreModal = BuildGenreSelectionModal(canvasGo.transform);
 
             // phase 별 패널 — Market 은 task-105 실 장보기 UI, 나머지는 task-106+ 가 교체한다.
-            var marketPanel = BuildMarketPanel(canvasGo.transform);
+            var marketPanel = BuildMarketPanel(canvasGo.transform, genreModal);
             var servicePanel = BuildServicePanel(canvasGo.transform);
             var settlementPanel = BuildSettlementPanel(canvasGo.transform);
             var nightPanel = BuildNightPanel(canvasGo.transform);
 
-            // 초기 표시는 Market — 런타임에서는 PhaseHudController 가 상태에 맞춰 토글한다.
+            // 초기 표시는 Market(미선택 → modal 노출) — 런타임에서는 controller 가 상태에 맞춰 토글한다.
             marketPanel.SetActive(true);
             servicePanel.SetActive(false);
             settlementPanel.SetActive(false);
             nightPanel.SetActive(false);
+            genreModal.Panel.transform.SetAsLastSibling();
+            genreModal.Panel.SetActive(true);
 
             var hud = canvasGo.AddComponent<PhaseHudController>();
-            hud.EditorInit(dayPhaseText, advanceButton, marketPanel, servicePanel, settlementPanel, nightPanel);
+            hud.EditorInit(dayPhaseText, advanceButton, marketPanel, servicePanel, settlementPanel, nightPanel,
+                genreBadge);
 
             SaveScene(scene, ShopPath);
         }
@@ -134,10 +150,13 @@ namespace ClientIsKing.EditorTools
         {
             // 두 씬 모두 부트스트랩 포함 — 어느 씬에서 시작해도 동작 (중복은 Awake 가드가 제거).
             // 경제/인벤토리 매니저(task-105)는 같은 GO 에 탑재 — DontDestroyOnLoad 를 함께 탄다.
+            // task-110 (U5): MainMenu/Shop 양쪽에 동일한 정렬 catalog 를 주입해 persistent
+            // instance 가 어느 씬에서 생존해도 lookup/plan 검증을 잃지 않는다 (design.md G3).
             var go = new GameObject("GameManager", typeof(GameManager));
+            go.GetComponent<GameManager>().EditorInit(LoadGenreDefs());
             go.AddComponent<EconomyManager>();
             go.AddComponent<InventoryManager>();
-            go.AddComponent<ServiceManager>();
+            go.AddComponent<ServiceManager>().EditorInit(LoadRecipeDefs(), LoadCustomerDefs());
             go.AddComponent<SettlementManager>();
         }
 
@@ -394,8 +413,141 @@ namespace ClientIsKing.EditorTools
             return list;
         }
 
-        // ── Market 장보기 UI (task-105) ─────────────────────────────────────
-        static GameObject BuildMarketPanel(Transform parent)
+        // ── 장르 선택 modal (task-110 design.md E3 — 좌표·크기·폰트 픽셀 고정) ──
+
+        /// <summary>BuildShop 한 unit 안에서 modal 생성 → MarketPanelController 주입을 잇는 참조 묶음.</summary>
+        struct GenreModalRefs
+        {
+            public GameObject Panel;
+            public Button Gukbap;
+            public Button Bunsik;
+            public Button Noodles;
+            public Button Generalist;
+            public Button Confirm;
+            public TMP_Text DetailName;
+            public TMP_Text DetailBody;
+            public TMP_Text DetailNumbers;
+            public TMP_Text Helper;
+        }
+
+        static GenreModalRefs BuildGenreSelectionModal(Transform parent)
+        {
+            var panel = CreateUIObject("Panel_GenreSelection", parent);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -20f);
+            rt.sizeDelta = new Vector2(560f, 250f);
+            var background = panel.AddComponent<Image>();
+            background.color = SteamCream;
+            // raycastTarget 기본 true — modal 뒤 UI 클릭을 차단한다 (E3).
+
+            var title = CreateText(panel.transform, "Title", "전문 분야를 선택하세요", 20f,
+                new Vector2(0f, 90f), new Vector2(520f, 26f));
+            title.color = InkNavy;
+
+            // 4버튼 x=-180,-60,60,180 / y=50 / 110×32 / 15pt — 아이콘은 bowl/skewer/noodle/mixed
+            // placeholder (task-109 FoodIcons 재활용, 최종 아트는 Codex 승인 후 교체).
+            var gukbap = CreateGenreButton(panel.transform, "Button_Gukbap", "국밥", -180f,
+                $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png");
+            var bunsik = CreateGenreButton(panel.transform, "Button_Bunsik", "분식", -60f,
+                $"{PlaceholderArtBuilder.FoodIconsDir}/tteokbokki.png");
+            var noodles = CreateGenreButton(panel.transform, "Button_Noodles", "면류", 60f,
+                $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png");
+            var generalist = CreateGenreButton(panel.transform, "Button_Generalist", "균형", 180f,
+                $"{PlaceholderArtBuilder.FoodIconsDir}/gimbap.png");
+
+            // detail 영역 (0,-15)/(520×84) — 버튼 하단(34)과 detail 상단(27) 사이 7px 확보 (E3).
+            var detail = CreateUIObject("Detail", panel.transform);
+            var detailRt = (RectTransform)detail.transform;
+            detailRt.anchorMin = detailRt.anchorMax = new Vector2(0.5f, 0.5f);
+            detailRt.anchoredPosition = new Vector2(0f, -15f);
+            detailRt.sizeDelta = new Vector2(520f, 84f);
+            var detailName = CreateText(detail.transform, "DetailName", "", 16f,
+                new Vector2(0f, 33f), new Vector2(520f, 18f));
+            detailName.color = InkNavy;
+            var detailBody = CreateText(detail.transform, "DetailBody", "", 13f,
+                new Vector2(0f, 7f), new Vector2(520f, 32f));
+            detailBody.color = InkNavy;
+            var detailNumbers = CreateText(detail.transform, "DetailNumbers", "", 12f,
+                new Vector2(0f, -26f), new Vector2(520f, 30f));
+            detailNumbers.color = InkNavy;
+
+            var confirm = CreateButton(panel.transform, "ConfirmButton", "이 전문 분야로 시작",
+                new Vector2(0f, -80f), new Vector2(190f, 30f));
+            confirm.GetComponent<Image>().color = GochujangRed; // 현재 행동의 단일 primary color (E2)
+            var confirmLabel = confirm.GetComponentInChildren<TMP_Text>();
+            confirmLabel.fontSize = 15f;
+            confirmLabel.color = SteamCream;
+
+            var helper = CreateText(panel.transform, "HelperText", "선택은 이번 런 동안 유지됩니다 · ←/→·Tab 이동", 11f,
+                new Vector2(0f, -115f), new Vector2(520f, 18f));
+            helper.color = InkNavy;
+
+            // focus 순서 국밥→분식→면류→균형→확정 — 좌우 방향키는 explicit navigation (E3).
+            LinkHorizontalNavigation(gukbap, bunsik, noodles, generalist, confirm);
+
+            return new GenreModalRefs
+            {
+                Panel = panel,
+                Gukbap = gukbap,
+                Bunsik = bunsik,
+                Noodles = noodles,
+                Generalist = generalist,
+                Confirm = confirm,
+                DetailName = detailName,
+                DetailBody = detailBody,
+                DetailNumbers = detailNumbers,
+                Helper = helper,
+            };
+        }
+
+        /// <summary>장르 버튼 — Night Blue/Steam Cream 기본, 선택 시 controller 가 outline·아이콘을 켠다 (E3/F2).</summary>
+        static Button CreateGenreButton(Transform parent, string name, string label, float x, string iconPath)
+        {
+            var button = CreateButton(parent, name, label, new Vector2(x, 50f), new Vector2(110f, 32f));
+            button.GetComponent<Image>().color = NightBlue;
+            var text = button.GetComponentInChildren<TMP_Text>();
+            text.fontSize = 15f;
+            text.color = SteamCream;
+
+            // 선택 표시 outline 2px (Gochujang Red) — 기본 꺼짐, controller 가 선택 버튼만 켠다.
+            var outline = button.gameObject.AddComponent<Outline>();
+            outline.effectColor = GochujangRed;
+            outline.effectDistance = new Vector2(2f, 2f);
+            outline.enabled = false;
+
+            // 선택 아이콘 — 기본 비활성 (색만으로 상태 전달 금지, E5).
+            var iconGo = CreateUIObject("Icon", button.transform);
+            var iconRt = (RectTransform)iconGo.transform;
+            iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+            iconRt.anchoredPosition = new Vector2(-42f, 0f);
+            iconRt.sizeDelta = new Vector2(20f, 20f);
+            var iconImage = iconGo.AddComponent<Image>();
+            iconImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(iconPath);
+            iconImage.preserveAspect = true;
+            iconImage.raycastTarget = false;
+            iconGo.SetActive(false);
+
+            return button;
+        }
+
+        /// <summary>좌우 방향키 focus 체인 — explicit navigation 으로 순서를 고정한다 (E3).</summary>
+        static void LinkHorizontalNavigation(params Selectable[] chain)
+        {
+            for (int i = 0; i < chain.Length; i++)
+            {
+                var navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnLeft = i > 0 ? chain[i - 1] : null,
+                    selectOnRight = i < chain.Length - 1 ? chain[i + 1] : null,
+                };
+                chain[i].navigation = navigation;
+            }
+        }
+
+        // ── Market 장보기 UI (task-105, task-110 U5: 장르 modal 참조 주입) ──
+        static GameObject BuildMarketPanel(Transform parent, GenreModalRefs genreModal)
         {
             var panel = CreateUIObject("Panel_Market", parent);
             var rt = (RectTransform)panel.transform;
@@ -435,6 +587,15 @@ namespace ClientIsKing.EditorTools
             var messageText = CreateText(panel.transform, "MessageText", "", 11f,
                 new Vector2(0f, -90f), new Vector2(460f, 16f));
 
+            // 확정 후 남는 `상세 보기` 토글 (E3 — modal 은 접히고 badge + 상세 보기만).
+            var genreDetailButton = CreateButton(panel.transform, "GenreDetailButton", "상세 보기",
+                new Vector2(190f, 80f), new Vector2(80f, 20f));
+            genreDetailButton.GetComponent<Image>().color = NightBlue;
+            var genreDetailLabel = genreDetailButton.GetComponentInChildren<TMP_Text>();
+            genreDetailLabel.fontSize = 10f;
+            genreDetailLabel.color = SteamCream;
+            genreDetailButton.gameObject.SetActive(false); // 확정 전 숨김 — controller 가 토글
+
             var controller = panel.AddComponent<MarketPanelController>();
             controller.EditorInit(
                 cashText,
@@ -442,7 +603,11 @@ namespace ClientIsKing.EditorTools
                 gradeButton, gradeLabel,
                 quantityMinus, quantityPlus, quantityText,
                 costText, ownedText, buyButton, messageText,
-                LoadIngredientDefs());
+                LoadIngredientDefs(), LoadRecipeDefs(),
+                genreModal.Panel,
+                genreModal.Gukbap, genreModal.Bunsik, genreModal.Noodles, genreModal.Generalist,
+                genreModal.DetailName, genreModal.DetailBody, genreModal.DetailNumbers,
+                genreModal.Confirm, genreModal.Helper, genreDetailButton);
             return panel;
         }
 
@@ -515,11 +680,15 @@ namespace ClientIsKing.EditorTools
                 new Vector2(0f, -10f), new Vector2(440f, 20f));
             var statsText = CreateText(panel.transform, "StatsText", "서빙 0명 · 이탈 0명", 11f,
                 new Vector2(0f, -32f), new Vector2(440f, 16f));
+            // task-110: 전문 분야 원인 한 줄 — stats 아래·message 위 (message 는 하단으로 압축).
+            var genreEffectText = CreateText(panel.transform, "GenreEffectText", "", 10f,
+                new Vector2(0f, -48f), new Vector2(460f, 14f));
             var messageText = CreateText(panel.transform, "MessageText", "", 11f,
-                new Vector2(0f, -66f), new Vector2(460f, 44f));
+                new Vector2(0f, -76f), new Vector2(460f, 28f));
 
             var controller = panel.AddComponent<SettlementPanelController>();
-            controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText);
+            controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText,
+                genreEffectText);
             return panel;
         }
 
@@ -543,6 +712,16 @@ namespace ClientIsKing.EditorTools
             var controller = panel.AddComponent<NightPanelController>();
             controller.EditorInit(summaryText, daysText, statusText);
             return panel;
+        }
+
+        /// <summary>시드 GenreDef 4종을 id 순으로 로드한다 (MainMenu/Shop 동일 정렬 catalog — task-110).</summary>
+        static List<GenreDef> LoadGenreDefs()
+        {
+            return AssetDatabase.FindAssets("t:GenreDef", new[] { "Assets/Data/Definitions/Genres" })
+                .Select(guid => AssetDatabase.LoadAssetAtPath<GenreDef>(AssetDatabase.GUIDToAssetPath(guid)))
+                .Where(def => def != null)
+                .OrderBy(def => def.Id, System.StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>시드 RecipeDef 6종을 id 순으로 로드한다.</summary>

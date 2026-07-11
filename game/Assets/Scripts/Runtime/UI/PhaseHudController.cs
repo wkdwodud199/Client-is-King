@@ -1,5 +1,6 @@
 using ClientIsKing.DayCycle;
 using ClientIsKing.Managers;
+using ClientIsKing.Service;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,6 +10,7 @@ namespace ClientIsKing.UI
     /// <summary>
     /// Shop 씬 HUD — 현재 day/phase 표시, 다음 phase 버튼, phase 별 placeholder 패널 토글.
     /// 실제 phase 내용(장보기/서빙/정산 UI)은 task-105~107 이 패널을 교체하며 채운다.
+    /// task-110: 선택 전문 분야 badge 표시와 CanAdvancePhase 게이트를 추가한다.
     /// </summary>
     public sealed class PhaseHudController : MonoBehaviour
     {
@@ -18,12 +20,14 @@ namespace ClientIsKing.UI
         [SerializeField] private GameObject servicePanel;
         [SerializeField] private GameObject settlementPanel;
         [SerializeField] private GameObject nightPanel;
+        [SerializeField] private TMP_Text genreBadge;
 
         private TMP_Text advanceLabel;
 
         private void OnEnable()
         {
             GameEvents.DayPhaseChanged += OnDayPhaseChanged;
+            GameEvents.GenreSelected += OnGenreSelected;
             advanceButton.onClick.AddListener(OnAdvanceClicked);
             if (advanceLabel == null && advanceButton != null)
             {
@@ -35,6 +39,7 @@ namespace ClientIsKing.UI
         private void OnDisable()
         {
             GameEvents.DayPhaseChanged -= OnDayPhaseChanged;
+            GameEvents.GenreSelected -= OnGenreSelected;
             if (advanceButton != null)
             {
                 advanceButton.onClick.RemoveListener(OnAdvanceClicked);
@@ -49,6 +54,7 @@ namespace ClientIsKing.UI
             {
                 Refresh(gm.State.day, gm.State.currentPhase);
             }
+            RefreshGenreBadge();
         }
 
         private void OnAdvanceClicked()
@@ -56,18 +62,25 @@ namespace ClientIsKing.UI
             GameManager.Instance.AdvancePhase();
         }
 
+        private void OnGenreSelected(string genreId)
+        {
+            RefreshGenreBadge();
+        }
+
         private void Update()
         {
-            // 파산은 phase 이벤트 없이 발생할 수 있어(정산 중) 가벼운 폴링으로 버튼을 잠근다 (task-107).
+            // task-110: 다른 controller 가 끈 버튼을 무조건 다시 켜던 비교식을 제거하고,
+            // !bankrupt && CanAdvancePhase 단일 식으로만 interactable 을 계산한다 (design.md H10/G3).
             if (advanceButton == null)
             {
                 return;
             }
             var gm = GameManager.Instance;
-            bool bankrupt = gm != null && gm.State != null && gm.State.isBankrupt;
-            if (advanceButton.interactable == bankrupt)
+            bool interactable = gm != null && gm.State != null
+                && !gm.State.isBankrupt && gm.CanAdvancePhase(out _);
+            if (advanceButton.interactable != interactable)
             {
-                advanceButton.interactable = !bankrupt;
+                advanceButton.interactable = interactable;
             }
         }
 
@@ -90,6 +103,32 @@ namespace ClientIsKing.UI
             if (servicePanel != null) servicePanel.SetActive(phase == DayPhase.Service);
             if (settlementPanel != null) settlementPanel.SetActive(phase == DayPhase.Settlement);
             if (nightPanel != null) nightPanel.SetActive(phase == DayPhase.Night);
+        }
+
+        /// <summary>선택된 전문 분야 + 주문 수를 HUD badge 에 표시한다 (미선택은 빈 문구 — design.md E3/H14).</summary>
+        private void RefreshGenreBadge()
+        {
+            if (genreBadge == null)
+            {
+                return;
+            }
+            var gm = GameManager.Instance;
+            string genreId = gm != null && gm.State != null ? gm.State.selectedGenreId : "";
+            if (string.IsNullOrEmpty(genreId))
+            {
+                genreBadge.text = "";
+                return;
+            }
+            if (!gm.TryGetGenre(genreId, out var def))
+            {
+                genreBadge.text = genreId;
+                return;
+            }
+            // 주문 수는 plan 경로에서 읽는다 — UI 가 SO 배수를 직접 계산하지 않는다 (G2).
+            var service = ServiceManager.Instance;
+            genreBadge.text = service != null && service.TryBuildDayPlan(def, out var plan, out _)
+                ? $"{def.DisplayName} · 주문 {plan.OrderCount}건"
+                : def.DisplayName;
         }
 
         /// <summary>phase 별 진행 버튼 라벨 (task-107 설계 11단계).</summary>
@@ -119,12 +158,22 @@ namespace ClientIsKing.UI
         }
 
 #if UNITY_EDITOR
-        /// <summary>SceneBuilder 전용 참조 주입.</summary>
+        /// <summary>SceneBuilder 전용 참조 주입 (기존 시그니처 — genreBadge 는 미배선 상태로 유지).</summary>
         internal void EditorInit(
             TMP_Text dayPhaseText, Button advanceButton,
             GameObject marketPanel, GameObject servicePanel,
             GameObject settlementPanel, GameObject nightPanel)
         {
+            EditorInit(dayPhaseText, advanceButton, marketPanel, servicePanel, settlementPanel, nightPanel, null);
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입 — genreBadge 배선 포함 (task-110, U5 채택 전까지 overload 유지).</summary>
+        internal void EditorInit(
+            TMP_Text dayPhaseText, Button advanceButton,
+            GameObject marketPanel, GameObject servicePanel,
+            GameObject settlementPanel, GameObject nightPanel, TMP_Text genreBadge)
+        {
+            this.genreBadge = genreBadge;
             this.dayPhaseText = dayPhaseText;
             this.advanceButton = advanceButton;
             this.marketPanel = marketPanel;

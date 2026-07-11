@@ -1,6 +1,8 @@
 using System.Linq;
+using ClientIsKing.Data;
 using ClientIsKing.EditorTools;
 using ClientIsKing.Managers;
+using ClientIsKing.Service;
 using ClientIsKing.UI;
 using NUnit.Framework;
 using TMPro;
@@ -16,6 +18,7 @@ namespace ClientIsKing.Tests.EditMode
 {
     /// <summary>
     /// task-104: SceneBuilder 산출물 검증 — 씬 존재·Build Settings 순서·필수 컴포넌트·씬 하드캡.
+    /// task-110 (U6): 장르 선택 UI 멱등 생성·persistent listener 중복 0 을 추가 검증한다.
     /// </summary>
     public class SceneBuilderTests
     {
@@ -115,6 +118,80 @@ namespace ClientIsKing.Tests.EditMode
             }
             Assert.IsTrue(canvasGo.transform.Find("Panel_Market").gameObject.activeSelf, "초기 활성 패널은 Market");
             Assert.IsFalse(canvasGo.transform.Find("Panel_Service").gameObject.activeSelf);
+        }
+
+        // ── task-110 U6: 장르 선택 UI + genre catalog 주입 + 멱등성 ─────────
+
+        [Test]
+        public void Shop_Has_GenreSelectionModal_As_Last_Sibling_And_Active_Initially()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+            Assert.IsNotNull(canvasGo, "Canvas 누락");
+
+            var modal = canvasGo.transform.Find("Panel_GenreSelection");
+            Assert.IsNotNull(modal, "Panel_GenreSelection 누락");
+            Assert.AreEqual(canvasGo.transform.childCount - 1, modal.GetSiblingIndex(),
+                "장르 modal 은 canvas 의 마지막 자식이어야 한다 (렌더/raycast 최상단, design.md E3)");
+            Assert.IsTrue(modal.gameObject.activeSelf, "미선택 상태에서는 modal 이 초기부터 노출되어야 한다");
+
+            var genreBadge = canvasGo.transform.Find("GenreBadge");
+            Assert.IsNotNull(genreBadge, "HUD GenreBadge 누락");
+            Assert.IsNotNull(genreBadge.GetComponent<TMP_Text>(), "GenreBadge 는 TMP_Text 여야 한다");
+        }
+
+        [Test]
+        public void GameManager_Bootstrap_Has_Sorted_Genre_Catalog_And_ServiceManager_Defs()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var gameManagerGo = Root(scene, "GameManager");
+            Assert.IsNotNull(gameManagerGo, "GameManager 오브젝트 누락");
+
+            var gm = gameManagerGo.GetComponent<GameManager>();
+            Assert.AreEqual(4, gm.GenreCatalog.Count, "장르 4종 주입");
+            var ids = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var sortedIds = new System.Collections.Generic.List<string>(ids);
+            sortedIds.Sort(System.StringComparer.Ordinal);
+            CollectionAssert.AreEqual(sortedIds, ids, "genre catalog 는 ID ordinal 정렬이어야 한다");
+
+            var service = gameManagerGo.GetComponent<ServiceManager>();
+            Assert.AreEqual(6, service.RecipeDefs.Count, "recipe 6종 주입");
+            Assert.AreEqual(4, service.CustomerDefs.Count, "customer 4종 주입");
+        }
+
+        [Test]
+        public void Repeated_Apply_Is_Idempotent_In_Object_Count_And_Persistent_Listeners()
+        {
+            SceneBuilder.Apply();
+            var firstScene = OpenSingle(SceneBuilder.ShopPath);
+            var firstCanvas = Root(firstScene, "Canvas");
+            int firstChildCount = CountAllDescendants(firstCanvas.transform);
+            int firstAdvanceListeners = firstCanvas.transform.Find("AdvanceButton")
+                .GetComponent<Button>().onClick.GetPersistentEventCount();
+
+            SceneBuilder.Apply();
+            var secondScene = OpenSingle(SceneBuilder.ShopPath);
+            var secondCanvas = Root(secondScene, "Canvas");
+            int secondChildCount = CountAllDescendants(secondCanvas.transform);
+            int secondAdvanceListeners = secondCanvas.transform.Find("AdvanceButton")
+                .GetComponent<Button>().onClick.GetPersistentEventCount();
+
+            Assert.AreEqual(firstChildCount, secondChildCount, "재실행해도 canvas 하위 오브젝트 수가 같아야 한다 (멱등)");
+            // SceneBuilder 는 코드로 버튼 리스너를 onClick.AddListener(런타임) 로만 등록하고
+            // EditorInit 은 참조 주입만 한다 — persistent(직렬화) 리스너는 0개여야 중복 배선이 없다.
+            Assert.AreEqual(0, firstAdvanceListeners, "AdvanceButton 은 persistent listener 없이 런타임 AddListener 만 사용해야 한다");
+            Assert.AreEqual(0, secondAdvanceListeners, "재실행 후에도 persistent listener 는 0 이어야 한다 (중복 배선 없음)");
+        }
+
+        static int CountAllDescendants(Transform root)
+        {
+            int count = 0;
+            foreach (Transform child in root)
+            {
+                count++;
+                count += CountAllDescendants(child);
+            }
+            return count;
         }
     }
 }

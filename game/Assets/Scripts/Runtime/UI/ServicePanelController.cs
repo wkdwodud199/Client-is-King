@@ -13,8 +13,10 @@ using UnityEngine.UI;
 namespace ClientIsKing.UI
 {
     /// <summary>
-    /// Service phase 영업 UI — 현재 주문 표시, 등급 선택(C/B 토글), 서빙/포기 처리, 당일 통계.
+    /// Service phase 영업 UI — 현재 주문 표시, 서빙/포기 처리, 당일 통계.
     /// phase 전환 규칙에는 관여하지 않는다 (패널 토글은 PhaseHudController 소관).
+    /// task-110 (U4): 등급 토글 숨김(C급만 — B급 데이터·Ops 보존), 장르 적용 1인 가격과
+    /// 파티 포함 예상 주문 총액을 실제 transaction 과 같은 ServiceOps 경로로 표시한다 (H14/G3).
     /// </summary>
     public sealed class ServicePanelController : MonoBehaviour
     {
@@ -46,12 +48,15 @@ namespace ClientIsKing.UI
             serveButton.onClick.AddListener(OnServe);
             skipButton.onClick.AddListener(OnSkip);
 
-            // Service phase 진입(패널 활성화)마다 오늘 주문을 보장하고 최신 상태로 그린다.
-            var service = ServiceManager.Instance;
-            if (service != null)
+            // task-110: B급 서빙 토글 숨김 — 플레이어 UI 는 C급만 사용한다 (B급 데이터·Ops 보존).
+            grade = IngredientGrade.C;
+            if (gradeToggleButton != null)
             {
-                service.EnsureServiceDay(recipeDefs, customerDefs);
+                gradeToggleButton.gameObject.SetActive(false);
             }
+
+            // task-110: 주문 생성 책임은 GameManager.AdvancePhase (Market→Service 원자적 전환) 로 이동했다.
+            // 이 패널은 활성화될 때 표시만 최신 상태로 갱신한다.
             if (messageText != null)
             {
                 messageText.text = "";
@@ -81,7 +86,8 @@ namespace ClientIsKing.UI
                 return;
             }
             var captured = service.CurrentOrder; // 처리 "전" 주문 캡처 (표현 이벤트 계약, task-108)
-            var result = service.TryServeCurrentOrder(FindRecipe(captured), grade);
+            // task-110: 장르 적용 서빙 경로 — 표시 예상가와 같은 Ops helper 로 판매가를 계산한다 (G3).
+            var result = service.TryServeCurrentOrder(FindRecipe(captured), grade, SelectedGenreOrNull());
             if (messageText != null)
             {
                 messageText.text = result.Message;
@@ -158,6 +164,18 @@ namespace ClientIsKing.UI
                 captured != null ? captured.partySize : 0,
                 served: !missed, missed: missed,
                 result.RevenueGained, result.Message);
+        }
+
+        /// <summary>선택된 전문 분야 정의 (미선택/미초기화는 null → neutral 배수 1.0 경로).</summary>
+        private static GenreDef SelectedGenreOrNull()
+        {
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            if (state == null)
+            {
+                return null;
+            }
+            return gm.TryGetGenre(state.selectedGenreId, out var def) ? def : null;
         }
 
         private RecipeDef FindRecipe(ServiceOrderState order)
@@ -246,7 +264,13 @@ namespace ClientIsKing.UI
             }
             if (revenueText != null && order != null)
             {
-                revenueText.text = $"예상 매출 {ServiceOps.CalculateSalePrice(recipe, order.partySize):N0}원";
+                // task-110: 실제 1인 가격 + 파티 포함 예상 주문 총액 — 둘 다 transaction 과 같은
+                // ServiceOps.CalculateSalePrice 경로를 사용한다. party 포함 총액을 "객단가" 라 부르지 않는다 (D5).
+                var genre = SelectedGenreOrNull();
+                float multiplier = genre != null ? genre.PricePerCustomerMultiplier : 1f;
+                int perCustomer = ServiceOps.CalculateSalePrice(recipe, 1, multiplier);
+                int orderTotal = ServiceOps.CalculateSalePrice(recipe, order.partySize, multiplier);
+                revenueText.text = $"1인 {perCustomer:N0}원 · 예상 총액 {orderTotal:N0}원";
             }
             else if (revenueText != null)
             {

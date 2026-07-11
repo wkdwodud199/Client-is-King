@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Genre;
 using ClientIsKing.Managers;
 using UnityEngine;
 
@@ -9,10 +10,18 @@ namespace ClientIsKing.Service
     /// <summary>
     /// 서비스 매니저 (싱글턴 8종 중 하나) — ServiceOps 로 위임하는 thin wrapper.
     /// GameManager 부트스트랩 오브젝트에 함께 배치된다 (SceneBuilder 소유).
+    /// task-110: 정렬된 recipe/customer 를 EditorInit 로 주입받아 plan 사전검증·원자적 주문 초기화를 제공한다.
     /// </summary>
     public sealed class ServiceManager : MonoBehaviour
     {
         public static ServiceManager Instance { get; private set; }
+
+        [SerializeField] private List<RecipeDef> recipeDefs = new List<RecipeDef>();
+        [SerializeField] private List<CustomerArchetypeDef> customerDefs = new List<CustomerArchetypeDef>();
+
+        /// <summary>SceneBuilder 주입 데이터의 read-only 노출 (테스트 검증용).</summary>
+        public IReadOnlyList<RecipeDef> RecipeDefs => recipeDefs;
+        public IReadOnlyList<CustomerArchetypeDef> CustomerDefs => customerDefs;
 
         private void Awake()
         {
@@ -51,6 +60,56 @@ namespace ClientIsKing.Service
             }
         }
 
+        /// <summary>
+        /// 선택된 장르로 오늘의 GenreDemandPlan 을 순수 검증만으로 생성한다 (state 를 바꾸지 않음).
+        /// 실패 시 out reason 에 한국어 사유를 담는다.
+        /// </summary>
+        public bool TryBuildDayPlan(GenreDef genre, out GenreDemandPlan plan, out string reason)
+        {
+            var state = State;
+            if (state == null)
+            {
+                plan = null;
+                reason = "게임 상태가 초기화되지 않았습니다.";
+                return false;
+            }
+            if (genre == null)
+            {
+                plan = null;
+                reason = "선택된 장르 정의를 찾을 수 없습니다.";
+                return false;
+            }
+
+            var genreInput = ToGenreInput(genre);
+            var recipeInputs = ToRecipeInputs(recipeDefs);
+            var customerInputs = ToCustomerInputs(customerDefs);
+
+            return GenreSelectionOps.TryBuildDemandPlan(genreInput, state.day, recipeInputs, customerInputs, out plan, out reason);
+        }
+
+        /// <summary>
+        /// Market→Service 전환 직전 원자적 초기화: plan 생성 성공 시에만 실제 주문을 만들어 StartServiceDay 를 호출한다.
+        /// 실패하면 state.serviceOrders 등은 전혀 건드리지 않는다.
+        /// </summary>
+        public bool TryStartServiceDay(GenreDef genre, out string reason)
+        {
+            var state = State;
+            if (state == null)
+            {
+                reason = "게임 상태가 초기화되지 않았습니다.";
+                return false;
+            }
+            if (!TryBuildDayPlan(genre, out var plan, out reason))
+            {
+                return false;
+            }
+
+            var orders = ServiceOps.BuildOrders(plan, customerDefs);
+            ServiceOps.StartServiceDay(state, orders, state.day);
+            reason = "";
+            return true;
+        }
+
         /// <summary>처리되지 않은 현재 주문 (없으면 null).</summary>
         public ServiceOrderState CurrentOrder => State != null ? ServiceOps.GetCurrentOrder(State) : null;
 
@@ -64,6 +123,17 @@ namespace ClientIsKing.Service
             return ServiceOps.TryServeCurrentOrder(state, recipe, grade);
         }
 
+        public ServiceResult TryServeCurrentOrder(RecipeDef recipe, IngredientGrade grade, GenreDef genre)
+        {
+            var state = State;
+            if (state == null)
+            {
+                return new ServiceResult(false, "게임 상태가 초기화되지 않았습니다.", 0, 0);
+            }
+            var genreInput = genre != null ? ToGenreInput(genre) : null;
+            return ServiceOps.TryServeCurrentOrder(state, recipe, grade, genreInput);
+        }
+
         public ServiceResult SkipCurrentOrder()
         {
             var state = State;
@@ -73,5 +143,69 @@ namespace ClientIsKing.Service
             }
             return ServiceOps.SkipCurrentOrder(state);
         }
+
+        // ── Unity SO → 순수 GenreSelectionOps 입력 투영 ─────────────────────
+
+        internal static GenreDefInput ToGenreInput(GenreDef genre)
+        {
+            var affinities = new List<GenreAffinityInput>();
+            foreach (var affinity in genre.CustomerAffinities)
+            {
+                if (affinity.Archetype != null)
+                {
+                    affinities.Add(new GenreAffinityInput(affinity.Archetype.Id, affinity.Multiplier));
+                }
+            }
+            return new GenreDefInput
+            {
+                Id = genre.Id,
+                IsGeneralist = genre.Kind == GenreKind.Generalist,
+                CookTimeMultiplier = genre.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genre.PricePerCustomerMultiplier,
+                CustomerAffinities = affinities,
+            };
+        }
+
+        internal static List<RecipeDefInput> ToRecipeInputs(IReadOnlyList<RecipeDef> recipes)
+        {
+            var result = new List<RecipeDefInput>();
+            foreach (var recipe in recipes)
+            {
+                if (recipe == null)
+                {
+                    continue;
+                }
+                result.Add(new RecipeDefInput
+                {
+                    Id = recipe.Id,
+                    GenreId = recipe.Genre != null ? recipe.Genre.Id : "",
+                    BasePrice = recipe.BasePrice,
+                });
+            }
+            return result;
+        }
+
+        internal static List<CustomerDefInput> ToCustomerInputs(IReadOnlyList<CustomerArchetypeDef> customers)
+        {
+            var result = new List<CustomerDefInput>();
+            foreach (var customer in customers)
+            {
+                if (customer == null)
+                {
+                    continue;
+                }
+                result.Add(new CustomerDefInput { Id = customer.Id, BaseSpawnWeight = customer.BaseSpawnWeight });
+            }
+            return result;
+        }
+
+#if UNITY_EDITOR
+        /// <summary>SceneBuilder 전용 참조 주입 — 정렬된 recipe/customer 목록을 MainMenu/Shop 양쪽에 동일하게 주입한다.</summary>
+        internal void EditorInit(List<RecipeDef> recipeDefs, List<CustomerArchetypeDef> customerDefs)
+        {
+            this.recipeDefs = recipeDefs;
+            this.customerDefs = customerDefs;
+        }
+#endif
     }
 }

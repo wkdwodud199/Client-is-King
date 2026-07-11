@@ -19,6 +19,15 @@ namespace ClientIsKing.DayCycle
             DayPhaseChanged?.Invoke(args);
         }
 
+        /// <summary>전문 분야(장르) 선택이 확정될 때 정확히 1회 발행된다 (task-110).</summary>
+        public static event Action<string> GenreSelected;
+
+        /// <summary>발행은 선택을 확정하는 도메인 경로(GameManager)만 호출한다.</summary>
+        internal static void RaiseGenreSelected(string genreId)
+        {
+            GenreSelected?.Invoke(genreId);
+        }
+
         // ── 표현 전용 이벤트 (task-108) — 게임 규칙은 이 이벤트에 의존하지 않는다 ──
 
         /// <summary>현재 표시할 주문이 바뀔 때 (없으면 HasOrder=false 로 슬롯 비움 신호).</summary>

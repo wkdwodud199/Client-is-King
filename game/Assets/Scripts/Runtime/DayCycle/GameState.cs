@@ -28,6 +28,12 @@ namespace ClientIsKing.DayCycle
         /// <summary>재료 인벤토리 — 종류×등급별 항목의 List (Dictionary 금지 규약).</summary>
         public List<IngredientStock> ingredientStocks = new List<IngredientStock>();
 
+        /// <summary>
+        /// 선택한 전문 분야(장르) ID (task-110) — 빈 문자열은 미선택.
+        /// SO 직접 참조·enum 직렬화 금지 규약 — 문자열 ID 만 저장한다.
+        /// </summary>
+        public string selectedGenreId = "";
+
         // ── Service phase 당일 상태 (task-106) — 하루 마감/리셋은 task-107 ──
 
         /// <summary>serviceOrders 가 속한 일차 (0 = 아직 영업 시작 전).</summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Genre;
 using ClientIsKing.Inventory;
 
 namespace ClientIsKing.Service
@@ -9,9 +10,10 @@ namespace ClientIsKing.Service
     /// <summary>
     /// 조리·서빙 핵심 규칙 (순수 C# — EditMode 테스트 대상, 매니저는 thin wrapper).
     ///
-    /// 계약 (task-106 설계):
+    /// 계약 (task-106 설계, task-110 확장):
     /// - 주문 생성은 같은 입력+day 에서 결정론적 (의사난수 대신 day/인덱스 산식 — 씨앗 주입 불필요).
-    /// - 판매가 = RecipeDef.BasePrice × partySize (장르/품질/이벤트 배수는 task-108+).
+    /// - 판매가(neutral) = RecipeDef.BasePrice × partySize. 장르 적용 판매가는
+    ///   RoundHalfUp(BasePrice × partySize × GenreDef.PricePerCustomerMultiplier) (design.md D5/G3).
     /// - 등급 혼합 금지 — 선택 등급(C/B) 재료만 소비한다.
     /// - 서빙은 전체 필요량 preflight 후에만 소비 (실패 경로는 자금·인벤·통계 완전 불변).
     /// </summary>
@@ -57,6 +59,47 @@ namespace ClientIsKing.Service
                     recipeId = recipe.Id,
                     customerId = customer.Id,
                     partySize = party,
+                });
+            }
+            return orders;
+        }
+
+        /// <summary>
+        /// GenreDemandPlan 기반 결정론적 주문 목록 생성 (design.md D6/G3, task-110).
+        /// recipe/customer 는 plan 이 이미 정렬·검증한 ID 목록을 그대로 사용하고,
+        /// customer 의 실제 PartySize 범위 조회에만 <paramref name="customers"/> 를 사용한다.
+        /// </summary>
+        public static List<ServiceOrderState> BuildOrders(GenreDemandPlan plan, IReadOnlyList<CustomerArchetypeDef> customers)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (customers == null) throw new ArgumentNullException(nameof(customers));
+
+            var customerById = new Dictionary<string, CustomerArchetypeDef>(StringComparer.Ordinal);
+            foreach (var customer in customers)
+            {
+                if (customer != null)
+                {
+                    customerById[customer.Id] = customer;
+                }
+            }
+
+            var orders = new List<ServiceOrderState>();
+            for (int i = 0; i < plan.OrderCount; i++)
+            {
+                string recipeId = GenreSelectionOps.PickRecipeId(plan, i);
+                string customerId = GenreSelectionOps.PickCustomerId(plan, i);
+                if (!customerById.TryGetValue(customerId, out var customerDef))
+                {
+                    throw new InvalidOperationException($"plan 이 참조하는 고객 '{customerId}' 정의를 찾을 수 없습니다.");
+                }
+                int partySize = GenreSelectionOps.PickPartySize(
+                    plan.Day, i, customerDef.PartySize.Min, customerDef.PartySize.Max);
+
+                orders.Add(new ServiceOrderState
+                {
+                    recipeId = recipeId,
+                    customerId = customerId,
+                    partySize = partySize,
                 });
             }
             return orders;
@@ -115,7 +158,7 @@ namespace ClientIsKing.Service
             return result;
         }
 
-        /// <summary>판매가 = BasePrice × partySize (배수 없음 — 설계 7단계).</summary>
+        /// <summary>판매가(neutral) = BasePrice × partySize (배수 없음 — 설계 7단계).</summary>
         public static int CalculateSalePrice(RecipeDef recipe, int partySize)
         {
             if (recipe == null || partySize <= 0)
@@ -123,6 +166,20 @@ namespace ClientIsKing.Service
                 return 0;
             }
             return recipe.BasePrice * partySize;
+        }
+
+        /// <summary>
+        /// 장르 객단가 배수 적용 판매가: RoundHalfUp(BasePrice × partySize × pricePerCustomerMultiplier)
+        /// (design.md D5/G3). UI 예상가와 실제 transaction 이 이 helper 를 공유한다.
+        /// </summary>
+        public static int CalculateSalePrice(RecipeDef recipe, int partySize, float pricePerCustomerMultiplier)
+        {
+            if (recipe == null || partySize <= 0 || pricePerCustomerMultiplier <= 0
+                || float.IsNaN(pricePerCustomerMultiplier) || float.IsInfinity(pricePerCustomerMultiplier))
+            {
+                return 0;
+            }
+            return (int)GenreSelectionOps.RoundHalfUp((double)recipe.BasePrice * partySize * pricePerCustomerMultiplier);
         }
 
         /// <summary>선택 등급 재료가 전부 충분한지 확인. 부족분은 shortage 요약으로 반환.</summary>
@@ -154,10 +211,27 @@ namespace ClientIsKing.Service
         }
 
         /// <summary>
-        /// 현재 주문 서빙 트랜잭션 — preflight 전체 통과 후에만 소비·매출 반영 (설계 9단계).
+        /// 현재 주문 서빙 트랜잭션 (neutral, 배수 1.0) — preflight 전체 통과 후에만 소비·매출 반영 (설계 9단계).
         /// 실패 경로(주문 없음/레시피 불일치/재료 부족)는 상태 완전 불변.
         /// </summary>
         public static ServiceResult TryServeCurrentOrder(GameState state, RecipeDef recipe, IngredientGrade grade)
+        {
+            return TryServeCurrentOrder(state, recipe, grade, pricePerCustomerMultiplier: 1f);
+        }
+
+        /// <summary>
+        /// 장르 적용 서빙 트랜잭션 (design.md G3) — 장르 판매가로 cash/serviceRevenueToday/
+        /// ServiceResult.RevenueGained 를 한 번에 갱신한다. UI 예상가와 같은 CalculateSalePrice helper 를 사용한다.
+        /// </summary>
+        public static ServiceResult TryServeCurrentOrder(
+            GameState state, RecipeDef recipe, IngredientGrade grade, GenreDefInput genre)
+        {
+            float multiplier = genre != null ? genre.PricePerCustomerMultiplier : 1f;
+            return TryServeCurrentOrder(state, recipe, grade, multiplier);
+        }
+
+        static ServiceResult TryServeCurrentOrder(
+            GameState state, RecipeDef recipe, IngredientGrade grade, float pricePerCustomerMultiplier)
         {
             Require(state);
 
@@ -178,6 +252,10 @@ namespace ClientIsKing.Service
             {
                 return new ServiceResult(false, "잘못된 파티 크기입니다.", 0, state.cash);
             }
+            if (pricePerCustomerMultiplier <= 0 || float.IsNaN(pricePerCustomerMultiplier) || float.IsInfinity(pricePerCustomerMultiplier))
+            {
+                return new ServiceResult(false, "잘못된 객단가 배수입니다.", 0, state.cash);
+            }
 
             if (!CanServeOrder(state, recipe, grade, order.partySize, out var shortage))
             {
@@ -190,7 +268,7 @@ namespace ClientIsKing.Service
                 InventoryOps.TryConsume(state, req.Kind, grade, req.Quantity);
             }
 
-            int price = CalculateSalePrice(recipe, order.partySize);
+            int price = CalculateSalePrice(recipe, order.partySize, pricePerCustomerMultiplier);
             state.cash += price;
             state.serviceRevenueToday += price;
             state.serviceOrdersServedToday++;
