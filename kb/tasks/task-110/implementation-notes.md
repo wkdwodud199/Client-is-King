@@ -5,7 +5,7 @@
 > Outputs: 장르 선택 도메인/경제/서비스 수학(U1-U3), UI/SceneBuilder(U4-U5), 밸런스·씬 회귀·PlayMode 테스트(U6-U8)
 > Next step: 커밋 완료(`9265da5`)·Codex 코드 리뷰 완료(`reviews/001.md` request-changes, 기록 지적 반영). 남은 오너 게이트: 640×360 시각 승인 + 수동 Play smoke → 통과 시 task-111(SNS)
 
-## 현재 상태: done (구현 완료, Unity green, 커밋 대기 — 3개 그룹 세션에 걸쳐 완료)
+## 현재 상태: done (구현 완료, Unity green, 커밋 완료 `9265da5` — 3개 그룹 세션에 걸쳐 완료)
 
 이 turn 은 세 그룹으로 나눠 순차 구현했다(같은 세션, SendMessage 재개).
 
