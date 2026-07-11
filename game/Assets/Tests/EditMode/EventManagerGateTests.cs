@@ -125,5 +125,33 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsNull(forecast);
             Assert.IsNotEmpty(reason);
         }
+
+        // ── Codex 리뷰001 Action: 필수 kind 누락 catalog(3종)의 phase gate 차단 회귀 ──
+
+        [Test]
+        public void Market_To_Service_Blocked_When_Event_Catalog_Missing_Required_Kind()
+        {
+            var gm = OpenGameManager();
+            SelectGenre(gm, "generalist");
+
+            // 정상 4종 catalog 에서 group_customers(GroupCustomers) 를 제거한 3종으로 재주입한다
+            // (asset 유실 등으로 필수 kind 가 빠진 실제 손상 시나리오를 시뮬레이션).
+            var reducedCatalog = gm.EventCatalog
+                .Where(d => d != null && d.Kind != ClientIsKing.Data.GameEventKind.GroupCustomers)
+                .ToList();
+            Assert.AreEqual(3, reducedCatalog.Count, "픽스처 전제: 3종만 남아야 한다");
+            gm.EditorInit(gm.GenreCatalog.ToList(), reducedCatalog);
+
+            bool canAdvance = gm.CanAdvancePhase(out var reason);
+            Assert.IsFalse(canAdvance, "필수 kind 가 누락된 catalog 는 Market→Service 를 차단해야 한다");
+            Assert.IsNotEmpty(reason);
+
+            var phaseBefore = gm.State.currentPhase;
+            var cashBefore = gm.State.cash;
+            var phaseAfter = gm.AdvancePhase();
+            Assert.AreEqual(phaseBefore, phaseAfter, "차단된 진행은 phase 를 바꾸지 않는다");
+            Assert.AreEqual(DayPhase.Market, phaseAfter);
+            Assert.AreEqual(cashBefore, gm.State.cash, "차단된 진행은 상태를 바꾸지 않는다");
+        }
     }
 }

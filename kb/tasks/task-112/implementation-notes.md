@@ -181,7 +181,33 @@ generalist 3장르는 대조 대상 상수 없이 이미 design.md 표와 정확
 갱신하고 주석에 근거를 남겼다. design.md 자체 수정은 이번 turn 범위 밖(문서 정정은 별도 확인 필요) —
 Codex 리뷰 시 참고하도록 이 노트에 근거를 남긴다.
 
-## Unity 검증 결과 (U7)
+## Codex 리뷰 001(request-changes) 반영: TryValidateCatalog 필수 4 kind 완전성 + 누락 실패/게이트 테스트
+
+`kb/tasks/task-112/reviews/001.md`(request-changes)의 Action을 정확히 그 범위만 반영했다. 핵심 구현·
+테스트 범위는 Codex가 "설계 일치·넓음"으로 확인했으므로 변경하지 않았다.
+
+- **문제**: `EventOps.TryValidateCatalog`가 null/empty·중복 ID·중복 Kind·kind별 필드만 확인해,
+  `group_customers`(GroupCustomers) 같은 필수 이벤트 asset이 누락되어 catalog가 3종만 들어와도
+  정상 통과했다 — `TryBuildNextDayActiveEvents`/`TryBuildForecast`/`TryBuildDayEffects`가 축소된
+  후보군으로 조용히 진행할 수 있어 "이벤트 정확히 4종"/"catalog 손상 시 명시적 사유로 phase 차단"
+  계약을 위반했다.
+- **수정**(`EventOps.cs`): 기존 kind별 검증 루프 뒤에 하드캡 4종(`IngredientPriceSurge`,
+  `HygieneInspection`, `RentIncrease`, `GroupCustomers`) 전원 존재 여부를 확인하는 `RequiredKinds`
+  상수 배열 + 완전성 검사를 추가했다. 하나라도 누락되면 `"필수 이벤트 종류 '{kind}' 가
+  누락되었습니다."`로 명시적 실패한다(사유에 누락 kind 명시). 기존 검증(null/중복 등)·순수 함수·상태
+  불변 계약은 그대로 유지 — 추가된 코드는 통과 조건을 하나 더 요구할 뿐 기존 로직을 바꾸지 않는다.
+- **신규 테스트**: `EventOpsTests.TryValidateCatalog_Fails_When_Required_Kind_Missing`(GroupCustomers
+  제거한 3종 catalog → 명시적 실패, 사유에 "GroupCustomers" 포함 확인),
+  `EventManagerGateTests.Market_To_Service_Blocked_When_Event_Catalog_Missing_Required_Kind`
+  (`GameManager.EditorInit`로 실제 씬의 4종 catalog에서 GroupCustomers 를 제거한 3종을 재주입해
+  Market→Service phase gate가 차단되고 cash/phase 완전 불변임을 확인 — 실제 손상 시나리오와 동일한
+  경로로 재현).
+
+**재검증**: 컴파일 exit 0(error CS 0) · **EditMode 332/332 pass**(기존 330 + 신규 2, 무회귀) ·
+**PlayMode 6/6 pass**(무회귀) · `git status --short game` 오염 없음(이번 반영은 기존 파일 2개만 수정
+— `EventOps.cs`/`EventOpsTests.cs` — 와 `EventManagerGateTests.cs` 1개 확장, 신규 파일 없음).
+
+## Unity 검증 결과 (U7, 원본)
 
 | 게이트 | 명령 | 결과 |
 |--------|------|------|
@@ -202,7 +228,9 @@ Codex 리뷰 시 참고하도록 이 노트에 근거를 남긴다.
 
 - **Codex 코드 리뷰**: `design-review-codex.md`(request-changes) 2건 Action(stale-day 필터·worst-case
   fallback)은 그룹1(`EventOps.BuildSettlementCauseLine` 내부 구현)과 이 그룹(worst-case 폭 자동
-  테스트 2건)에서 이미 반영됐다. 반영에 대한 Codex 재검토·승인은 **대기**.
+  테스트 2건)에서 이미 반영됐다. `kb/tasks/task-112/reviews/001.md`(request-changes)의 Action(필수
+  4 kind 완전성 검증)도 위 "Codex 리뷰 001 반영" 절에서 반영·재검증 완료. 반영에 대한 Codex
+  재검토·승인은 **대기**.
 - **640×360 원본 캡처 시각 승인**: Night v2 레이아웃·EventEffectText·축약 카피 톤이 겹침·canvas
   이탈 없이 F1/F5 좌표와 일치하는지 — 자동 테스트는 오브젝트 존재/좌표값/worst-case 폭까지 확인했지만
   실제 렌더 결과의 시각적 검토는 하지 않았다. **대기**.

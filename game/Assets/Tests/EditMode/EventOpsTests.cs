@@ -99,6 +99,20 @@ namespace ClientIsKing.Tests.EditMode
         }
 
         [Test]
+        public void TryValidateCatalog_Fails_When_Required_Kind_Missing()
+        {
+            // Codex 리뷰001 Action: group_customers(GroupCustomers) 가 빠진 3종 catalog — 축소된
+            // 후보군으로 조용히 진행하지 않고 명시적으로 실패해야 한다(하드캡 4종 완전성 강제).
+            var defs = SeedDefs();
+            defs.RemoveAll(d => d.Kind == GameEventKind.GroupCustomers);
+            Assert.AreEqual(3, defs.Count, "픽스처 전제: 3종만 남아야 한다");
+
+            Assert.IsFalse(EventOps.TryValidateCatalog(defs, out var reason));
+            Assert.IsNotEmpty(reason);
+            Assert.IsTrue(reason.Contains("GroupCustomers"), $"누락 kind 가 사유에 명시되어야 함: '{reason}'");
+        }
+
+        [Test]
         public void TryValidateCatalog_Fails_On_Invalid_BaseWeight()
         {
             foreach (var bad in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })

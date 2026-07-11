@@ -123,8 +123,27 @@ namespace ClientIsKing.Events
                         return false;
                 }
             }
+
+            // 하드캡 4종이 전부 존재해야 한다 — 필수 kind 누락(예: catalog asset 유실)은 축소된
+            // 후보군으로 조용히 진행하지 않고 명시적으로 실패한다(Codex 리뷰001 Action).
+            foreach (GameEventKind requiredKind in RequiredKinds)
+            {
+                if (!seenKinds.Contains(requiredKind))
+                {
+                    failReason = $"필수 이벤트 종류 '{requiredKind}' 가 누락되었습니다.";
+                    return false;
+                }
+            }
             return true;
         }
+
+        static readonly GameEventKind[] RequiredKinds =
+        {
+            GameEventKind.IngredientPriceSurge,
+            GameEventKind.HygieneInspection,
+            GameEventKind.RentIncrease,
+            GameEventKind.GroupCustomers,
+        };
 
         /// <summary>
         /// activeEvents 목록 불변식 검증: eventId 비어있지 않음·catalog 존재·중복 없음,
