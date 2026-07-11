@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Events;
 using ClientIsKing.Managers;
 using ClientIsKing.Service;
 using ClientIsKing.Settlement;
@@ -19,9 +21,17 @@ namespace ClientIsKing.UI
     /// </summary>
     public sealed class NightPanelController : MonoBehaviour
     {
+        // F2 예고 라인 색 (task-110 팔레트 hex 고정) — 상태는 [예고]/[지속] 문구가 전달하고 색은 보조다.
+        static readonly Color32 WarningPlum = new Color32(0xA9, 0x3E, 0x58, 0xFF);
+        static readonly Color32 BrassAmber = new Color32(0xE5, 0xA8, 0x4B, 0xFF);
+        static readonly Color32 SteamCream = new Color32(0xF4, 0xE5, 0xC2, 0xFF);
+
         [SerializeField] private TMP_Text summaryText;
         [SerializeField] private TMP_Text daysText;
         [SerializeField] private TMP_Text statusText;
+
+        // ── 이벤트 예고 라인 (task-112 F1/F2 — SceneBuilder 가 생성·주입) ───
+        [SerializeField] private TMP_Text eventNoticeText;
 
         // ── SNS 블록 (task-111 F1 — SceneBuilder 가 생성·주입) ──────────────
         [SerializeField] private TMP_Text followerText;
@@ -148,11 +158,56 @@ namespace ClientIsKing.UI
                 snsTitleText.text = "SNS 캠페인 — 내일의 손님을 설계하세요";
             }
 
+            // task-112 F2: 내일 예고 — forecast DTO 표시 전용 (예고==적용, UI 재계산 금지).
+            // 실패 시 forecast 는 null (EventOps 보장) — 오류 라인 표시 + 경고는 기본 운영비로 폴백.
+            gm.TryBuildEventForecast(out var forecast, out var forecastFailReason);
+            RenderEventNotice(forecast, forecastFailReason);
+
             var tonight = FindTonightRecord(state);
             RenderCampaignButton(photoFeedButton, SNSCampaignCopy.PhotoFeedId, tonight);
             RenderCampaignButton(shortFormButton, SNSCampaignCopy.ShortFormId, tonight);
             RenderCampaignButton(localBoardButton, SNSCampaignCopy.LocalBoardId, tonight);
-            RenderInfoLine(state, tonight);
+            RenderInfoLine(state, tonight, forecast);
+        }
+
+        /// <summary>
+        /// F2 예고 라인 — 신규(위기 Plum/기회 Amber) → 지속(Plum) → 없음(Cream) → 오류(Plum) 순 분기.
+        /// 문자열은 forecast DTO 완성본을 그대로 표시한다 (EventOps 단일 원천).
+        /// </summary>
+        private void RenderEventNotice(EventForecast forecast, string failReason)
+        {
+            if (eventNoticeText == null)
+            {
+                return;
+            }
+            if (forecast == null)
+            {
+                eventNoticeText.text = $"이벤트 상태 오류: {failReason}";
+                eventNoticeText.color = WarningPlum;
+                return;
+            }
+            if (!string.IsNullOrEmpty(forecast.UpcomingNoticeLine))
+            {
+                eventNoticeText.text = forecast.UpcomingNoticeLine;
+                eventNoticeText.color = IsOpportunityEvent(forecast.UpcomingEventId) ? BrassAmber : WarningPlum;
+                return;
+            }
+            if (!string.IsNullOrEmpty(forecast.ContinuingNoticeLine))
+            {
+                eventNoticeText.text = forecast.ContinuingNoticeLine;
+                eventNoticeText.color = WarningPlum;
+                return;
+            }
+            eventNoticeText.text = "내일 예고된 이벤트 없음";
+            eventNoticeText.color = SteamCream;
+        }
+
+        /// <summary>단체 손님만 기회(Brass Amber) — 나머지 3종은 위기(Warning Plum) (F2 표).</summary>
+        private static bool IsOpportunityEvent(string eventId)
+        {
+            var gm = GameManager.Instance;
+            return gm != null && gm.TryGetEventDef(eventId, out var def)
+                && def.Kind == GameEventKind.GroupCustomers;
         }
 
         /// <summary>
@@ -200,8 +255,12 @@ namespace ClientIsKing.UI
             SetExecutedOutline(button, executed);
         }
 
-        /// <summary>기본 안내 / 집행 완료 결과 + 운영비 부족 경고 (색+문구 병용, F2).</summary>
-        private void RenderInfoLine(GameState state, SNSCampaignRecord tonight)
+        /// <summary>
+        /// 기본 안내 / 집행 완료 결과 + 운영비 부족 경고 (색+문구 병용, F2).
+        /// task-112: 경고 기준을 내일의 실제 운영비(forecast.NextDayOperatingCost — 임대료 인상·위생
+        /// 반영)로 교체한다. forecast 실패(손상 데이터) 시에만 기본 운영비 상수로 폴백한다.
+        /// </summary>
+        private void RenderInfoLine(GameState state, SNSCampaignRecord tonight, EventForecast forecast)
         {
             if (snsInfoText == null)
             {
@@ -214,9 +273,12 @@ namespace ClientIsKing.UI
             }
             string text = $"{CampaignDisplayName(tonight.campaignId)} 집행 완료 — " +
                 $"내일 SNS 유입 +{tonight.bonusOrderCount}팀 · 팔로워 +{tonight.followerGain} · 잔액 {state.cash:N0}원";
-            if (state.cash < SettlementOps.DailyOperatingCost)
+            int nextDayOperatingCost = forecast != null
+                ? forecast.NextDayOperatingCost
+                : SettlementOps.DailyOperatingCost;
+            if (state.cash < nextDayOperatingCost)
             {
-                text += $"\n<color={SNSCampaignCopy.WarningPlumHex}>내일 운영비 12,000원이 부족할 수 있습니다</color>";
+                text += $"\n<color={SNSCampaignCopy.WarningPlumHex}>내일 운영비 {nextDayOperatingCost:N0}원이 부족할 수 있습니다</color>";
             }
             snsInfoText.text = text;
         }
@@ -307,15 +369,26 @@ namespace ClientIsKing.UI
         /// <summary>SceneBuilder 전용 참조 주입 — 기존 시그니처 (SNS 블록 미배선 유지).</summary>
         internal void EditorInit(TMP_Text summaryText, TMP_Text daysText, TMP_Text statusText)
         {
-            EditorInit(summaryText, daysText, statusText, null, null, null, null, null, null, null);
+            EditorInit(summaryText, daysText, statusText, null, null, null, null, null, null, null, null);
         }
 
-        /// <summary>SceneBuilder 전용 참조 주입 — SNS 블록 포함 (task-111 U5 채택 대상).</summary>
+        /// <summary>SceneBuilder 전용 참조 주입 — SNS 블록 포함, 기존 시그니처 보존 (이벤트 예고 미배선).</summary>
         internal void EditorInit(
             TMP_Text summaryText, TMP_Text daysText, TMP_Text statusText,
             TMP_Text followerText, TMP_Text snsTitleText,
             Button photoFeedButton, Button shortFormButton, Button localBoardButton,
             TMP_Text snsInfoText, Button advanceButton)
+        {
+            EditorInit(summaryText, daysText, statusText, followerText, snsTitleText,
+                photoFeedButton, shortFormButton, localBoardButton, snsInfoText, advanceButton, null);
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입 — 이벤트 예고 라인 포함 (task-112 U6 채택 대상).</summary>
+        internal void EditorInit(
+            TMP_Text summaryText, TMP_Text daysText, TMP_Text statusText,
+            TMP_Text followerText, TMP_Text snsTitleText,
+            Button photoFeedButton, Button shortFormButton, Button localBoardButton,
+            TMP_Text snsInfoText, Button advanceButton, TMP_Text eventNoticeText)
         {
             this.summaryText = summaryText;
             this.daysText = daysText;
@@ -327,6 +400,7 @@ namespace ClientIsKing.UI
             this.localBoardButton = localBoardButton;
             this.snsInfoText = snsInfoText;
             this.advanceButton = advanceButton;
+            this.eventNoticeText = eventNoticeText;
         }
 #endif
     }

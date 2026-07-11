@@ -27,6 +27,9 @@ namespace ClientIsKing.Service
         /// <summary>이 주문이 SNS 보너스 유입인가 (task-111 — 기본 false, 기존 저장/테스트 하위호환).</summary>
         public bool snsInflow;
 
+        /// <summary>이 주문이 단체 손님 이벤트 보너스인가 (task-112 — 기본 false, 기존 저장/테스트 하위호환).</summary>
+        public bool eventInflow;
+
         /// <summary>아직 처리되지 않은 주문인가.</summary>
         public bool IsOpen => !served && !missed;
     }

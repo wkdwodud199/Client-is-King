@@ -160,6 +160,23 @@ namespace ClientIsKing.Genre
                     return false;
                 }
             }
+            if (modifier.EventBonusOrderCount != 0 && modifier.EventBonusOrderCount != 1)
+            {
+                failReason = "DayModifier 의 이벤트 보너스 주문 수가 잘못되었습니다.";
+                return false;
+            }
+            if (modifier.EventBonusOrderCount == 1
+                && (modifier.EventPartySize < 2 || string.IsNullOrEmpty(modifier.EventSourceId)))
+            {
+                failReason = "DayModifier 의 이벤트 단체 손님 효과가 잘못되었습니다.";
+                return false;
+            }
+            if (modifier.EventBonusOrderCount == 0
+                && (modifier.EventPartySize != 0 || !string.IsNullOrEmpty(modifier.EventSourceId)))
+            {
+                failReason = "DayModifier 의 이벤트 단체 손님 효과가 잘못되었습니다.";
+                return false;
+            }
 
             if (genre == null)
             {
@@ -342,7 +359,8 @@ namespace ClientIsKing.Genre
             plan = new GenreDemandPlan(
                 genre.Id, day, orderCount, modifier.BonusOrderCount,
                 allowedRecipeIds, weights, bonusWeights, topCustomerIds, minPrice, maxPrice,
-                modifier.SourceCampaignId);
+                modifier.SourceCampaignId,
+                modifier.EventBonusOrderCount, modifier.EventPartySize, modifier.EventSourceId);
             return true;
         }
 
@@ -384,12 +402,26 @@ namespace ClientIsKing.Genre
         /// <summary>
         /// 고객 roll seed = FNV-1a("genreId|day|orderIndex"), roll = seed % totalMilliWeight,
         /// 누적합이 roll 을 처음 초과하는 고객을 선택 (design.md D6/H8 계약).
-        /// orderIndex &lt; BaseOrderCount 면 CustomerWeights(base-prefix 불변), 아니면 BonusCustomerWeights 를 사용한다
-        /// (task-111 D2) — 시드는 두 구간 모두 동일한 FNV-1a("genreId|day|orderIndex") 공식을 쓴다.
+        /// 3분기(task-112 D3): orderIndex &lt; BaseOrderCount 면 CustomerWeights(base-prefix 불변),
+        /// BaseOrderCount..BaseOrderCount+BonusOrderCount-1 이면 BonusCustomerWeights(SNS-prefix 불변),
+        /// 그 외(단체 보너스)는 CustomerWeights(base 풀 재사용 — 채널 타겟과 무관, 장르 친화만 반영)를 사용한다
+        /// (task-111 D2) — 시드는 전 구간 동일한 FNV-1a("genreId|day|orderIndex") 공식을 쓴다.
         /// </summary>
         public static string PickCustomerId(GenreDemandPlan plan, int orderIndex)
         {
-            var pool = orderIndex < plan.BaseOrderCount ? plan.CustomerWeights : plan.BonusCustomerWeights;
+            IReadOnlyList<CustomerWeightRow> pool;
+            if (orderIndex < plan.BaseOrderCount)
+            {
+                pool = plan.CustomerWeights;
+            }
+            else if (orderIndex < plan.BaseOrderCount + plan.BonusOrderCount)
+            {
+                pool = plan.BonusCustomerWeights;
+            }
+            else
+            {
+                pool = plan.CustomerWeights;
+            }
 
             long total = 0;
             foreach (var row in pool)

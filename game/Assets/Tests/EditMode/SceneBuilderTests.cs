@@ -272,5 +272,58 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, firstListeners, "SNS 버튼도 persistent listener 없이 런타임 AddListener 만 사용해야 한다");
             Assert.AreEqual(0, secondListeners, "재실행 후에도 SNS 버튼 persistent listener 는 0 이어야 한다");
         }
+
+        // ── task-112 U7: 이벤트 catalog 4종 양씬 동일 주입 + 오브젝트 멱등 ───
+
+        [Test]
+        public void GameManager_Bootstrap_Has_Sorted_Event_Catalog_On_Both_Scenes()
+        {
+            var shop = OpenSingle(SceneBuilder.ShopPath);
+            var shopGm = Root(shop, "GameManager").GetComponent<GameManager>();
+            Assert.AreEqual(4, shopGm.EventCatalog.Count, "이벤트 4종 주입 (Shop)");
+            var shopIds = shopGm.EventCatalog.Select(d => d.Id).ToList();
+            CollectionAssert.AreEqual(
+                new[] { "group_customers", "hygiene_inspection", "ingredient_price_surge", "rent_increase" },
+                shopIds, "이벤트 catalog 는 ID ordinal 정렬이어야 한다 (Shop)");
+
+            var mainMenu = OpenSingle(SceneBuilder.MainMenuPath);
+            var mainMenuGm = Root(mainMenu, "GameManager").GetComponent<GameManager>();
+            Assert.IsNotNull(mainMenuGm, "MainMenu GameManager 누락");
+            var mainMenuIds = mainMenuGm.EventCatalog.Select(d => d.Id).ToList();
+            CollectionAssert.AreEqual(shopIds, mainMenuIds, "MainMenu/Shop 양쪽에 동일 정렬 이벤트 catalog 주입");
+        }
+
+        [Test]
+        public void Night_Panel_Has_EventNoticeText_And_Settlement_Has_EventEffectText()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+            var nightPanel = canvasGo.transform.Find("Panel_Night");
+            Assert.IsNotNull(nightPanel.Find("EventNoticeText"), "Panel_Night/EventNoticeText 누락");
+
+            var settlementPanel = canvasGo.transform.Find("Panel_Settlement");
+            Assert.IsNotNull(settlementPanel.Find("EventEffectText"), "Panel_Settlement/EventEffectText 누락");
+        }
+
+        [Test]
+        public void Repeated_Apply_Is_Idempotent_For_Event_Catalog_And_Night_Object_Count()
+        {
+            SceneBuilder.Apply();
+            var firstScene = OpenSingle(SceneBuilder.ShopPath);
+            var firstGm = Root(firstScene, "GameManager").GetComponent<GameManager>();
+            int firstEventCount = firstGm.EventCatalog.Count;
+            var firstNightPanel = Root(firstScene, "Canvas").transform.Find("Panel_Night");
+            int firstNightChildCount = CountAllDescendants(firstNightPanel);
+
+            SceneBuilder.Apply();
+            var secondScene = OpenSingle(SceneBuilder.ShopPath);
+            var secondGm = Root(secondScene, "GameManager").GetComponent<GameManager>();
+            int secondEventCount = secondGm.EventCatalog.Count;
+            var secondNightPanel = Root(secondScene, "Canvas").transform.Find("Panel_Night");
+            int secondNightChildCount = CountAllDescendants(secondNightPanel);
+
+            Assert.AreEqual(firstEventCount, secondEventCount, "재실행해도 이벤트 catalog 수가 같아야 한다 (멱등)");
+            Assert.AreEqual(firstNightChildCount, secondNightChildCount, "재실행해도 Night 패널 하위 오브젝트 수가 같아야 한다 (멱등)");
+        }
     }
 }

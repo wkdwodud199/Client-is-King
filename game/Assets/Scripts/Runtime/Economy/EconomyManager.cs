@@ -61,7 +61,41 @@ namespace ClientIsKing.Economy
             {
                 return new PurchaseResult(false, "선택된 전문 분야를 찾을 수 없습니다.", 0, state.cash, 0);
             }
-            return EconomyOps.TryPurchaseIngredient(state, def, quantity, genre.CostMultiplier);
+            // task-112 E3: 오늘 이벤트 효과(재료값 폭등 배수)를 조회해 구매 경로에 전달한다.
+            if (!gm.TryBuildTodayEventEffects(out var fx, out var reason))
+            {
+                return new PurchaseResult(false, reason, 0, state.cash, 0);
+            }
+            return EconomyOps.TryPurchaseIngredient(state, def, quantity, genre.CostMultiplier, fx.IngredientCostMilli);
+        }
+
+        /// <summary>
+        /// 장르+이벤트를 같은 helper 로 합성한 UI 예상가의 단일 경로 (task-112 E3 — 예상가 = 거래가 보장, task-110 G3 유지).
+        /// </summary>
+        public bool TryCalculatePurchaseCost(IngredientDef def, int quantity, out int cost, out string reason)
+        {
+            var state = State;
+            if (state == null)
+            {
+                cost = 0;
+                reason = "게임 상태가 초기화되지 않았습니다.";
+                return false;
+            }
+            var gm = GameManager.Instance;
+            if (gm == null || !gm.TryGetGenre(state.selectedGenreId, out var genre))
+            {
+                cost = 0;
+                reason = "선택된 전문 분야를 찾을 수 없습니다.";
+                return false;
+            }
+            if (!gm.TryBuildTodayEventEffects(out var fx, out reason))
+            {
+                cost = 0;
+                return false;
+            }
+            cost = EconomyOps.CalculatePurchaseCost(def, quantity, genre.CostMultiplier, fx.IngredientCostMilli);
+            reason = "";
+            return true;
         }
     }
 }

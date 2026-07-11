@@ -33,6 +33,11 @@ namespace ClientIsKing.Settlement
 
         public bool IsAppliedToday => State != null && SettlementOps.IsSettlementApplied(State);
 
+        /// <summary>
+        /// 오늘 정산을 적용한다. 이미 적용된 날이면 기존 재구성 경로(파라미터 무관)를 그대로 쓰고,
+        /// 아니면 오늘 이벤트 효과(fx)를 조회해 운영비 배수/가산 overload 로 적용한다(task-112 E3).
+        /// fx 조회 실패 시 손상 데이터로 명시적 실패(applied:false)를 반환한다.
+        /// </summary>
         public SettlementResult ApplyDailySettlement()
         {
             var state = State;
@@ -41,7 +46,22 @@ namespace ClientIsKing.Settlement
                 return new SettlementResult(0, false, false, false, 0, 0, 0, 0, 0, 0, 0,
                     "게임 상태가 초기화되지 않았습니다.");
             }
-            return SettlementOps.ApplyDailySettlement(state);
+            if (SettlementOps.IsSettlementApplied(state))
+            {
+                return SettlementOps.ApplyDailySettlement(state);
+            }
+            var gm = GameManager.Instance;
+            if (gm == null)
+            {
+                return new SettlementResult(state.day, false, false, state.isBankrupt, 0, 0, 0, 0, 0, 0, 0,
+                    "게임 매니저가 초기화되지 않았습니다.");
+            }
+            if (!gm.TryBuildTodayEventEffects(out var fx, out var reason))
+            {
+                return new SettlementResult(state.day, false, false, state.isBankrupt, 0, 0, 0, 0, 0, 0, 0,
+                    reason);
+            }
+            return SettlementOps.ApplyDailySettlement(state, fx.OperatingCostMilli, fx.OperatingCostFlat);
         }
     }
 }

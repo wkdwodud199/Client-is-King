@@ -247,18 +247,21 @@ namespace ClientIsKing.EditorTools
         }
 
         // ── 이벤트 4 (하드캡) ───────────────────────────────────────────────
+        // task-112 승인 seed (design.md B1 고정 — 구현 중 임의 재밸런싱 금지): 위생 flat 80,000 →
+        // 8,000원(단일 이벤트 파산 강제 금지), 단체 flat 6 → 4(파티 크기 규약 전환), "불시"/"예고 없이"
+        // 문구 2건을 전날 예고 규약에 맞게 교체. weight·duration·percent·타 이벤트는 불변 (GUID 보존 upsert).
         static void BuildGameEvents()
         {
             (string id, string name, GameEventKind kind, float weight, int days, float percent, int flat, string desc)[] rows =
             {
                 ("ingredient_price_surge", "재료값 폭등", GameEventKind.IngredientPriceSurge, 1.0f, 2, 0.35f, 0,
                     "시장 파동으로 재료 구매가가 +35% 오른다 (2일)."),
-                ("hygiene_inspection", "위생 점검", GameEventKind.HygieneInspection, 0.8f, 1, 0f, 80000,
-                    "불시 위생 점검. 대응 비용 8만 원이 든다 (1일)."),
+                ("hygiene_inspection", "위생 점검", GameEventKind.HygieneInspection, 0.8f, 1, 0f, 8000,
+                    "위생 점검이 예고됐다. 대응 비용 8,000원이 정산에 더해진다 (1일)."),
                 ("rent_increase", "임대료 인상", GameEventKind.RentIncrease, 0.6f, 0, 0.15f, 0,
                     "건물주가 임대료를 +15% 올린다 (영구, durationDays 0 = 영구 규약)."),
-                ("group_customers", "단체 손님", GameEventKind.GroupCustomers, 0.9f, 1, 0f, 6,
-                    "회식 단체가 예고 없이 방문한다. 손님 +6명 (1일)."),
+                ("group_customers", "단체 손님", GameEventKind.GroupCustomers, 0.9f, 1, 0f, 4,
+                    "회식 단체 1팀(4인)이 예약 방문한다. 재료를 넉넉히 준비하자 (1일)."),
             };
             foreach (var r in rows)
             {

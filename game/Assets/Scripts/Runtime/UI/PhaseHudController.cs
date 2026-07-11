@@ -1,4 +1,5 @@
 using ClientIsKing.DayCycle;
+using ClientIsKing.Genre;
 using ClientIsKing.Managers;
 using ClientIsKing.Service;
 using TMPro;
@@ -137,17 +138,36 @@ namespace ClientIsKing.UI
             }
             // 주문 수는 plan 경로에서 읽는다 — UI 가 SO 배수를 직접 계산하지 않는다 (G2).
             // task-111 F5: SNS 보너스가 있는 날은 `{base}+{bonus}건(SNS)` 로 인과를 표시한다.
+            // task-112 F3: 단체 보너스가 있는 날은 `(단체)`, 동시면 `(SNS·단체)` 로 확장한다.
             var service = ServiceManager.Instance;
             if (service != null && service.TryBuildDayPlan(def, out var plan, out _))
             {
-                genreBadge.text = plan.BonusOrderCount > 0
-                    ? $"{def.DisplayName} · 주문 {plan.BaseOrderCount}+{plan.BonusOrderCount}건(SNS)"
-                    : $"{def.DisplayName} · 주문 {plan.OrderCount}건";
+                genreBadge.text = BuildBadgeText(def.DisplayName, plan);
             }
             else
             {
                 genreBadge.text = def.DisplayName;
             }
+        }
+
+        /// <summary>badge 문구 (task-112 F3) — 기본/SNS만/단체만/동시. plan 파생값만 사용 (UI 재계산 금지).</summary>
+        internal static string BuildBadgeText(string displayName, GenreDemandPlan plan)
+        {
+            bool sns = plan.BonusOrderCount > 0;
+            bool group = plan.EventBonusOrderCount > 0;
+            if (sns && group)
+            {
+                return $"{displayName} · 주문 {plan.BaseOrderCount}+{plan.BonusOrderCount}+{plan.EventBonusOrderCount}건(SNS·단체)";
+            }
+            if (sns)
+            {
+                return $"{displayName} · 주문 {plan.BaseOrderCount}+{plan.BonusOrderCount}건(SNS)";
+            }
+            if (group)
+            {
+                return $"{displayName} · 주문 {plan.BaseOrderCount}+{plan.EventBonusOrderCount}건(단체)";
+            }
+            return $"{displayName} · 주문 {plan.OrderCount}건";
         }
 
         /// <summary>phase 별 진행 버튼 라벨 (task-107 설계 11단계).</summary>

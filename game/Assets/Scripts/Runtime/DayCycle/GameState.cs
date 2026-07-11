@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ClientIsKing.Events;
 using ClientIsKing.Inventory;
 using ClientIsKing.Service;
 using ClientIsKing.Social;
@@ -96,5 +97,22 @@ namespace ClientIsKing.DayCycle
 
         /// <summary>당일 SNS 유입 주문의 누적 매출 (원, StartServiceDay 가 리셋).</summary>
         public int serviceSnsRevenueToday = 0;
+
+        // ── 이벤트/장애물 (task-112) ──
+
+        /// <summary>활성 이벤트 목록 (task-110 D10) — 스케줄·효과 재구성의 유일한 원천.</summary>
+        public List<ActiveEventState> activeEvents = new List<ActiveEventState>();
+
+        /// <summary>당일 재료 구매의 이벤트 할증 합계 (원) — marketSpendDay 리셋 규약을 공유한다.</summary>
+        public int marketEventSurchargeToday = 0;
+
+        /// <summary>당일 단체 손님 주문 중 서빙 완료 건수 (StartServiceDay 가 리셋).</summary>
+        public int serviceEventOrdersServedToday = 0;
+
+        /// <summary>당일 단체 손님 주문 중 포기 건수 (StartServiceDay 가 리셋).</summary>
+        public int serviceEventOrdersMissedToday = 0;
+
+        /// <summary>당일 단체 손님 주문의 누적 매출 (원, StartServiceDay 가 리셋).</summary>
+        public int serviceEventRevenueToday = 0;
     }
 }

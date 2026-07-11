@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Linq;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Economy;
 using ClientIsKing.Genre;
 using ClientIsKing.Managers;
 using ClientIsKing.Service;
@@ -153,6 +154,87 @@ namespace ClientIsKing.Tests.PlayMode
                 "보너스 인덱스 주문은 전부 snsInflow 태그가 있어야 한다");
             Assert.IsTrue(gm.State.serviceOrders.Take(plan.BaseOrderCount).All(o => !o.snsInflow),
                 "base 인덱스 주문은 snsInflow 태그가 없어야 한다");
+        }
+
+        // ── task-112 U7: 이벤트 catalog persistent 생존 + Day1→2→3 도메인 경로 ──
+
+        [UnityTest]
+        public IEnumerator GameManager_Survives_Scene_Load_With_Event_Catalog_Of_Four()
+        {
+            yield return SceneManager.LoadSceneAsync("MainMenu");
+            yield return null;
+            yield return SceneManager.LoadSceneAsync("Shop");
+            yield return null;
+
+            var gm = GameManager.Instance;
+            Assert.IsNotNull(gm, "GameManager.Instance 누락");
+            Assert.AreEqual(4, gm.EventCatalog.Count, "이벤트 4종 보유");
+            var ids = gm.EventCatalog.Select(d => d.Id).ToList();
+            var sortedIds = new System.Collections.Generic.List<string>(ids);
+            sortedIds.Sort(System.StringComparer.Ordinal);
+            CollectionAssert.AreEqual(sortedIds, ids, "이벤트 catalog 는 ID ordinal 정렬이어야 한다");
+        }
+
+        [UnityTest]
+        public IEnumerator Day1_To_3_No_Ui_Advances_Through_EventFree_Day2_Into_Surge_Active_Day3()
+        {
+            yield return SceneManager.LoadSceneAsync("MainMenu");
+            yield return null;
+            yield return SceneManager.LoadSceneAsync("Shop");
+            yield return null;
+
+            var gm = GameManager.Instance;
+            Assert.IsNotNull(gm);
+            gm.StartNewGame();
+
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = GenreSelectionOps.TrySelect(gm.State, "gukbap", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+
+            var service = ServiceManager.Instance;
+            var economy = EconomyManager.Instance;
+
+            // Night 예고==다음날 활성화 일치를 매 경계에서 확인하며 Day1→2→3 을 도메인 경로로 진행한다.
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase()); // Day1 Market -> Service
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(DayPhase.Settlement, gm.AdvancePhase());
+            Assert.AreEqual(DayPhase.Night, gm.AdvancePhase());
+
+            Assert.IsTrue(gm.TryBuildEventForecast(out var forecastDay2, out var forecastReason1), forecastReason1);
+            Assert.AreEqual("", forecastDay2.UpcomingEventId, "Day2 는 C4 표상 무이벤트(occRoll==450)");
+
+            Assert.AreEqual(DayPhase.Market, gm.AdvancePhase()); // Night -> Day2 Market
+            Assert.AreEqual(2, gm.State.day);
+            Assert.AreEqual(0, gm.State.activeEvents.Count, "Day2 는 활성 이벤트가 없어야 한다");
+
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase()); // Day2 Market -> Service
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(DayPhase.Settlement, gm.AdvancePhase());
+            Assert.AreEqual(DayPhase.Night, gm.AdvancePhase());
+
+            Assert.IsTrue(gm.TryBuildEventForecast(out var forecastDay3, out var forecastReason2), forecastReason2);
+            Assert.AreEqual("ingredient_price_surge", forecastDay3.UpcomingEventId, "Day3 는 C4 표상 재료값 폭등 신규 활성화");
+
+            Assert.AreEqual(DayPhase.Market, gm.AdvancePhase()); // Night -> Day3 Market
+            Assert.AreEqual(3, gm.State.day, "예고==다음날 활성화 일치 — Night 예고대로 Day3 활성화");
+            Assert.AreEqual(1, gm.State.activeEvents.Count);
+            Assert.AreEqual("ingredient_price_surge", gm.State.activeEvents[0].eventId);
+
+            // Day3 구매 할증 발생 확인 — 인상 전/후 가격이 달라야 한다. Panel_Market 이 이미 씬에 주입한
+            // ingredient 목록을 그대로 쓴다(테스트가 별도 asset 조회 경로를 만들지 않는다).
+            gm.TryGetGenre("gukbap", out var genreDef);
+            var marketController = GameObject.Find("Canvas").transform.Find("Panel_Market")
+                .GetComponent<ClientIsKing.UI.MarketPanelController>();
+            var pork = marketController.IngredientDefs.First(
+                d => d.Kind == ClientIsKing.Data.IngredientKind.Pork && d.Grade == ClientIsKing.Data.IngredientGrade.C);
+
+            Assert.IsTrue(economy.TryCalculatePurchaseCost(pork, 1, out var raisedCost, out var costReason), costReason);
+            int neutralCost = EconomyOps.CalculatePurchaseCost(pork, 1, genreDef.CostMultiplier);
+            Assert.Greater(raisedCost, neutralCost, "Day3 활성 폭등은 구매가를 인상시켜야 한다");
+
+            var purchaseResult = economy.TryPurchaseIngredient(pork, 1);
+            Assert.IsTrue(purchaseResult.Success, purchaseResult.Message);
+            Assert.Greater(gm.State.marketEventSurchargeToday, 0, "구매 성공 시 이벤트 할증이 누적되어야 한다");
         }
     }
 }

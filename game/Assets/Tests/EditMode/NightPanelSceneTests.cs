@@ -32,7 +32,7 @@ namespace ClientIsKing.Tests.EditMode
         {
             string[] names =
             {
-                "SummaryText", "DaysText", "FollowerText", "SnsTitleText",
+                "SummaryText", "DaysText", "EventNoticeText", "FollowerText", "SnsTitleText",
                 "Button_Sns_PhotoFeed", "Button_Sns_ShortForm", "Button_Sns_LocalBoard",
                 "SnsInfoText", "StatusText",
             };
@@ -45,10 +45,12 @@ namespace ClientIsKing.Tests.EditMode
         [Test]
         public void Night_Panel_Sns_Objects_Match_F1_Coordinates()
         {
-            AssertAnchoredPosition("SummaryText", new Vector2(0f, 84f));
-            AssertAnchoredPosition("DaysText", new Vector2(0f, 66f));
-            AssertAnchoredPosition("FollowerText", new Vector2(0f, 50f));
-            AssertAnchoredPosition("SnsTitleText", new Vector2(0f, 32f));
+            // task-112 F1 v2: 기존 4텍스트 이동·축소 + EventNoticeText 삽입(읽는 순서 오늘 마감→내일 예고→SNS 설계).
+            AssertAnchoredPosition("SummaryText", new Vector2(0f, 86f));
+            AssertAnchoredPosition("DaysText", new Vector2(0f, 71f));
+            AssertAnchoredPosition("EventNoticeText", new Vector2(0f, 57f));
+            AssertAnchoredPosition("FollowerText", new Vector2(0f, 44f));
+            AssertAnchoredPosition("SnsTitleText", new Vector2(0f, 31f));
             AssertAnchoredPosition("Button_Sns_PhotoFeed", new Vector2(-150f, 0f));
             AssertAnchoredPosition("Button_Sns_ShortForm", new Vector2(0f, 0f));
             AssertAnchoredPosition("Button_Sns_LocalBoard", new Vector2(150f, 0f));

@@ -153,8 +153,10 @@ namespace ClientIsKing.EditorTools
             // task-110 (U5): MainMenu/Shop 양쪽에 동일한 정렬 catalog 를 주입해 persistent
             // instance 가 어느 씬에서 생존해도 lookup/plan 검증을 잃지 않는다 (design.md G3).
             // task-111 (U5): SNS catalog 도 양쪽 동일 주입 (ID ordinal 정렬 — E2).
+            // task-112 (U6): 이벤트 catalog 4종도 양쪽 동일 주입 (ID ordinal 정렬 — E1,
+            // Market→Service/Settlement/Night 도메인 게이트가 유효 catalog 를 요구한다).
             var go = new GameObject("GameManager", typeof(GameManager));
-            go.GetComponent<GameManager>().EditorInit(LoadGenreDefs());
+            go.GetComponent<GameManager>().EditorInit(LoadGenreDefs(), LoadGameEventDefs());
             go.AddComponent<EconomyManager>();
             go.AddComponent<InventoryManager>();
             go.AddComponent<ServiceManager>().EditorInit(LoadRecipeDefs(), LoadCustomerDefs(), LoadSnsCampaignDefs());
@@ -687,12 +689,15 @@ namespace ClientIsKing.EditorTools
             // task-111 (F4): SNS 원인 한 줄 — GenreEffectText 아래, message 는 하단으로 추가 압축 (겹침 금지).
             var snsEffectText = CreateText(panel.transform, "SnsEffectText", "", 10f,
                 new Vector2(0f, -62f), new Vector2(460f, 14f));
-            var messageText = CreateText(panel.transform, "MessageText", "", 11f,
-                new Vector2(0f, -84f), new Vector2(460f, 24f));
+            // task-112 (F5): 이벤트 원인 한 줄 — SnsEffectText 아래, message 는 하단으로 이동·축소 (겹침 방지).
+            var eventEffectText = CreateText(panel.transform, "EventEffectText", "", 10f,
+                new Vector2(0f, -76f), new Vector2(460f, 14f));
+            var messageText = CreateText(panel.transform, "MessageText", "", 10f,
+                new Vector2(0f, -91f), new Vector2(460f, 14f));
 
             var controller = panel.AddComponent<SettlementPanelController>();
             controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText,
-                genreEffectText, snsEffectText);
+                genreEffectText, snsEffectText, eventEffectText);
             return panel;
         }
 
@@ -706,15 +711,18 @@ namespace ClientIsKing.EditorTools
             rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.25f, 0.85f);
 
-            // F1: 기존 3텍스트 재배치·축소 + SNS 블록 (로컬 y ±100, 상단 여백 7px·하단 12px).
-            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 13f,
-                new Vector2(0f, 84f), new Vector2(440f, 18f));
+            // F1 v2 (task-112): 기존 4텍스트 이동·축소 + EventNoticeText 삽입 — 읽는 순서는
+            // 오늘 마감 → 내일 예고 → SNS 설계 (버튼·SnsInfoText·StatusText 좌표 불변, 겹침 없음).
+            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 12f,
+                new Vector2(0f, 86f), new Vector2(440f, 16f));
             var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 10f,
-                new Vector2(0f, 66f), new Vector2(440f, 14f));
-            var followerText = CreateText(panel.transform, "FollowerText", "팔로워 120명", 11f,
-                new Vector2(0f, 50f), new Vector2(440f, 14f));
+                new Vector2(0f, 71f), new Vector2(440f, 12f));
+            var eventNoticeText = CreateText(panel.transform, "EventNoticeText", "", 11f,
+                new Vector2(0f, 57f), new Vector2(460f, 14f));
+            var followerText = CreateText(panel.transform, "FollowerText", "팔로워 120명", 10f,
+                new Vector2(0f, 44f), new Vector2(440f, 12f));
             var snsTitleText = CreateText(panel.transform, "SnsTitleText", "SNS 캠페인 — 내일의 손님을 설계하세요", 12f,
-                new Vector2(0f, 32f), new Vector2(440f, 16f));
+                new Vector2(0f, 31f), new Vector2(440f, 14f));
 
             // 채널 버튼 3종 — F2 카피 (2행 라벨은 controller 가 preview 실시간 값으로 갱신).
             var photoFeed = CreateSnsCampaignButton(panel.transform, "Button_Sns_PhotoFeed", -150f,
@@ -734,7 +742,8 @@ namespace ClientIsKing.EditorTools
 
             var controller = panel.AddComponent<NightPanelController>();
             controller.EditorInit(summaryText, daysText, statusText,
-                followerText, snsTitleText, photoFeed, shortForm, localBoard, snsInfoText, advanceButton);
+                followerText, snsTitleText, photoFeed, shortForm, localBoard, snsInfoText, advanceButton,
+                eventNoticeText);
             return panel;
         }
 
@@ -760,6 +769,19 @@ namespace ClientIsKing.EditorTools
         {
             return AssetDatabase.FindAssets("t:GenreDef", new[] { "Assets/Data/Definitions/Genres" })
                 .Select(guid => AssetDatabase.LoadAssetAtPath<GenreDef>(AssetDatabase.GUIDToAssetPath(guid)))
+                .Where(def => def != null)
+                .OrderBy(def => def.Id, System.StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
+        /// 시드 GameEventDef 4종을 id 순으로 로드한다 (group_customers, hygiene_inspection,
+        /// ingredient_price_surge, rent_increase — task-112 E1, MainMenu/Shop 동일 주입).
+        /// </summary>
+        static List<GameEventDef> LoadGameEventDefs()
+        {
+            return AssetDatabase.FindAssets("t:GameEventDef", new[] { "Assets/Data/Definitions/Events" })
+                .Select(guid => AssetDatabase.LoadAssetAtPath<GameEventDef>(AssetDatabase.GUIDToAssetPath(guid)))
                 .Where(def => def != null)
                 .OrderBy(def => def.Id, System.StringComparer.Ordinal)
                 .ToList();

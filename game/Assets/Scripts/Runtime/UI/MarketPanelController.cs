@@ -469,9 +469,37 @@ namespace ClientIsKing.UI
                         // task-111 F5: 어제 SNS 집행의 유입 예정 표시 — plan 값 사용 (UI 직접 계산 금지).
                         forecastLine += $" · SNS 유입 +{plan.BonusOrderCount}팀 예정";
                     }
+                    // task-112 F3: 오늘 활성 이벤트 표시 — fx/plan 파생값만 사용 (UI 재계산 금지).
+                    forecastLine += BuildTodayEventSuffix(gm, plan);
                 }
                 genreDetailNumbersText.text = GenreSelectionCopy.Comparison(genreId) + "\n" + forecastLine;
             }
+        }
+
+        /// <summary>
+        /// 확정 상세의 오늘 이벤트 접미 문구 (task-112 F3) — 폭등은 fx 파생 `(IngredientCostMilli−1000)/10`%,
+        /// 단체는 plan 의 EventBonusOrderCount/EventPartySize 사용. UI 는 SO 배수를 재계산하지 않는다.
+        /// </summary>
+        private static string BuildTodayEventSuffix(GameManager gm, GenreDemandPlan plan)
+        {
+            string suffix = "";
+            if (gm != null && gm.TryBuildTodayEventEffects(out var fx, out _))
+            {
+                foreach (var eventId in fx.ActiveEventIds)
+                {
+                    if (gm.TryGetEventDef(eventId, out var eventDef)
+                        && eventDef.Kind == GameEventKind.IngredientPriceSurge)
+                    {
+                        suffix += $" · 오늘: {eventDef.DisplayName} +{(fx.IngredientCostMilli - 1000) / 10}%";
+                        break; // kind 유일성 (카탈로그 검증) — 폭등은 최대 1건
+                    }
+                }
+            }
+            if (plan.EventBonusOrderCount > 0)
+            {
+                suffix += $" · 단체 +{plan.EventBonusOrderCount}팀({plan.EventPartySize}인) 예정";
+            }
+            return suffix;
         }
 
         /// <summary>modal focus 순환 대상 — 국밥→분식→면류→균형→확정 순서 중 활성·interactable 만 (E3).</summary>
@@ -511,13 +539,6 @@ namespace ClientIsKing.UI
             return gm.TryGetGenre(state.selectedGenreId, out var def) ? def : null;
         }
 
-        /// <summary>Market 예상 비용에 쓰는 장르 원가 배수 — transaction 과 같은 EconomyOps helper 에 전달 (H11).</summary>
-        private static float CurrentCostMultiplier()
-        {
-            var genre = SelectedGenreOrNull();
-            return genre != null ? genre.CostMultiplier : 1f;
-        }
-
         private void RefreshAll()
         {
             var def = CurrentDef;
@@ -542,7 +563,12 @@ namespace ClientIsKing.UI
             }
             if (costText != null)
             {
-                int cost = EconomyOps.CalculatePurchaseCost(def, quantity, CurrentCostMultiplier());
+                // task-112 E3/F3: 예상가는 장르+이벤트를 합성한 EconomyManager 단일 경로 — 예상가 = 거래가 보장.
+                // 실패(미초기화/장르 미확정/손상 데이터)는 0원 표시 — 기존 null def 방어 규약과 동일.
+                if (economy == null || !economy.TryCalculatePurchaseCost(def, quantity, out var cost, out _))
+                {
+                    cost = 0;
+                }
                 costText.text = $"예상 비용 {cost:N0}원";
             }
             if (ownedText != null && def != null)

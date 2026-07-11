@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Events;
 using ClientIsKing.Genre;
 using ClientIsKing.Managers;
 using ClientIsKing.Social;
@@ -67,8 +68,9 @@ namespace ClientIsKing.Service
 
         /// <summary>
         /// 선택된 장르로 오늘의 GenreDemandPlan 을 순수 검증만으로 생성한다 (state 를 바꾸지 않음).
-        /// 어제 SNS 집행 기록이 있으면 <see cref="SNSCampaignOps.TryBuildDayModifier"/> 로 재구성한 DayModifier 를
-        /// 합성한다(task-111 E2) — 기록이 없거나 미지 campaignId 를 참조하면 명시적 사유로 실패한다.
+        /// 어제 SNS 집행 기록이 있으면 <see cref="SNSCampaignOps.TryBuildDayModifier"/> 로 재구성한 DayModifier 에
+        /// 오늘 이벤트 효과(단체 손님)를 <see cref="EventOps.TryComposeDayModifier"/> 로 합성한다(task-112 E2,
+        /// SNS→이벤트 순서 고정) — 기록이 없거나 미지 campaignId/이벤트 상태 손상 시 명시적 사유로 실패한다.
         /// 실패 시 out reason 에 한국어 사유를 담는다.
         /// </summary>
         public bool TryBuildDayPlan(GenreDef genre, out GenreDemandPlan plan, out string reason)
@@ -92,7 +94,25 @@ namespace ClientIsKing.Service
             var customerInputs = ToCustomerInputs(customerDefs);
             var snsInputs = ToSnsCampaignInputs(snsCampaignDefs);
 
-            if (!SNSCampaignOps.TryBuildDayModifier(state.snsCampaignHistory, state.day, snsInputs, customerInputs, out var modifier, out reason))
+            if (!SNSCampaignOps.TryBuildDayModifier(state.snsCampaignHistory, state.day, snsInputs, customerInputs, out var snsModifier, out reason))
+            {
+                plan = null;
+                return false;
+            }
+
+            var gm = GameManager.Instance;
+            if (gm == null)
+            {
+                plan = null;
+                reason = "게임 매니저가 초기화되지 않았습니다.";
+                return false;
+            }
+            if (!gm.TryBuildTodayEventEffects(out var fx, out reason))
+            {
+                plan = null;
+                return false;
+            }
+            if (!EventOps.TryComposeDayModifier(snsModifier, fx, out var modifier, out reason))
             {
                 plan = null;
                 return false;

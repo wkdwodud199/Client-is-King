@@ -551,5 +551,120 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, state.serviceSnsOrdersServedToday, "태그 없는 주문은 SNS 통계 영향 없음");
             Assert.AreEqual(0, state.serviceSnsRevenueToday);
         }
+
+        // ── task-112 D3: 단체 손님 세그먼트·파티 override·통계 ──────────────
+
+        [Test]
+        public void BuildOrders_From_Plan_Segments_Base_Sns_Event_By_Range()
+        {
+            var genreDef = LoadAll<GenreDef>("Assets/Data/Definitions/Genres").First(g => g.Id == "bunsik");
+            var recipes = Recipes;
+            var customers = Customers;
+
+            var genreInput = new GenreDefInput
+            {
+                Id = genreDef.Id,
+                IsGeneralist = false,
+                CookTimeMultiplier = genreDef.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genreDef.PricePerCustomerMultiplier,
+                CustomerAffinities = genreDef.CustomerAffinities
+                    .Select(a => new GenreAffinityInput(a.Archetype.Id, a.Multiplier)).ToList(),
+            };
+            var recipeInputs = recipes.Select(r => new RecipeDefInput { Id = r.Id, GenreId = r.Genre.Id, BasePrice = r.BasePrice }).ToList();
+            var customerInputs = customers.Select(c => new CustomerDefInput
+            {
+                Id = c.Id, BaseSpawnWeight = c.BaseSpawnWeight, AgeBand = c.AgeBand, Gender = c.Gender,
+            }).ToList();
+
+            var boosts = new List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1600),
+                new CustomerWeightBoost("office_worker", 1300),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+            var modifier = new DayModifier(2, "short_form", 2, boosts, "group_customers", 1, 4);
+
+            Assert.IsTrue(GenreSelectionOps.TryBuildDemandPlan(genreInput, 2, recipeInputs, customerInputs, modifier, out var plan, out var reason), reason);
+            Assert.AreEqual(9, plan.OrderCount, "base 6 + SNS 2 + 단체 1");
+
+            var orders = ServiceOps.BuildOrders(plan, customers);
+            Assert.AreEqual(9, orders.Count);
+            for (int i = 0; i < orders.Count; i++)
+            {
+                bool expectedSns = i >= plan.BaseOrderCount && i < plan.BaseOrderCount + plan.BonusOrderCount;
+                bool expectedEvent = i >= plan.BaseOrderCount + plan.BonusOrderCount;
+                Assert.AreEqual(expectedSns, orders[i].snsInflow, $"주문 {i} snsInflow");
+                Assert.AreEqual(expectedEvent, orders[i].eventInflow, $"주문 {i} eventInflow");
+                Assert.IsFalse(orders[i].snsInflow && orders[i].eventInflow, $"주문 {i}: 두 태그는 서로소여야 한다");
+            }
+
+            var eventOrder = orders[plan.BaseOrderCount + plan.BonusOrderCount];
+            Assert.AreEqual(4, eventOrder.partySize, "단체 주문 파티는 plan.EventPartySize 로 override");
+        }
+
+        [Test]
+        public void StartServiceDay_Resets_Event_Daily_Stats()
+        {
+            var state = new GameState
+            {
+                serviceEventOrdersServedToday = 9,
+                serviceEventOrdersMissedToday = 9,
+                serviceEventRevenueToday = 9999,
+            };
+
+            ServiceOps.StartServiceDay(state, new List<ServiceOrderState>(), 4);
+
+            Assert.AreEqual(0, state.serviceEventOrdersServedToday);
+            Assert.AreEqual(0, state.serviceEventOrdersMissedToday);
+            Assert.AreEqual(0, state.serviceEventRevenueToday);
+        }
+
+        [Test]
+        public void TryServe_Event_Tagged_Order_Updates_Event_Stats_Only_For_Tagged()
+        {
+            var recipe = Recipe("pork_gukbap");
+            var state = new GameState();
+            var orders = new List<ServiceOrderState>
+            {
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 4, eventInflow = true },
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 1, eventInflow = false },
+            };
+            ServiceOps.StartServiceDay(state, orders, 1);
+            InventoryOps.Add(state, IngredientKind.Pork, IngredientGrade.C, 20);
+            InventoryOps.Add(state, IngredientKind.Rice, IngredientGrade.C, 20);
+            InventoryOps.Add(state, IngredientKind.Vegetable, IngredientGrade.C, 20);
+
+            var first = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C);
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.AreEqual(1, state.serviceEventOrdersServedToday);
+            Assert.AreEqual(first.RevenueGained, state.serviceEventRevenueToday);
+            Assert.AreEqual(0, state.serviceSnsOrdersServedToday, "단체 태그는 SNS 통계에 영향 없음");
+
+            var second = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C);
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreEqual(1, state.serviceEventOrdersServedToday, "neutral 주문은 단체 통계에 영향 없음");
+            Assert.AreEqual(first.RevenueGained, state.serviceEventRevenueToday, "neutral 주문 매출은 단체 매출에 더해지지 않음");
+        }
+
+        [Test]
+        public void Skip_Event_Tagged_Order_Updates_Missed_Event_Stat_Only()
+        {
+            var recipe = Recipe("tteokbokki");
+            var state = new GameState();
+            var orders = new List<ServiceOrderState>
+            {
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 4, eventInflow = true },
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "office_worker", partySize = 1, eventInflow = false },
+            };
+            ServiceOps.StartServiceDay(state, orders, 1);
+
+            ServiceOps.SkipCurrentOrder(state);
+            Assert.AreEqual(1, state.serviceEventOrdersMissedToday);
+
+            ServiceOps.SkipCurrentOrder(state);
+            Assert.AreEqual(1, state.serviceEventOrdersMissedToday, "neutral 포기는 단체 통계에 영향 없음");
+            Assert.AreEqual(2, state.serviceOrdersMissedToday, "기존 전체 통계는 그대로 갱신");
+        }
     }
 }

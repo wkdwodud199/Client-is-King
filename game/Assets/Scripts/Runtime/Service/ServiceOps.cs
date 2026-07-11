@@ -65,10 +65,11 @@ namespace ClientIsKing.Service
         }
 
         /// <summary>
-        /// GenreDemandPlan 기반 결정론적 주문 목록 생성 (design.md D6/G3, task-110; task-111 D3 SNS 태그).
-        /// recipe/customer 는 plan 이 이미 정렬·검증한 ID 목록을 그대로 사용하고,
-        /// customer 의 실제 PartySize 범위 조회에만 <paramref name="customers"/> 를 사용한다.
-        /// 인덱스 i가 plan.BaseOrderCount 이상이면(=보너스 주문, base 뒤에 append) snsInflow 태그를 붙인다.
+        /// GenreDemandPlan 기반 결정론적 주문 목록 생성 (design.md D6/G3, task-110; task-111 D3 SNS 태그;
+        /// task-112 D3 단체 보너스 세그먼트). recipe/customer 는 plan 이 이미 정렬·검증한 ID 목록을 그대로
+        /// 사용하고, customer 의 실제 PartySize 범위 조회에만 <paramref name="customers"/> 를 사용한다.
+        /// 세그먼트(고정 배치): [0,Base) base, [Base,Base+Sns) SNS(snsInflow), [Base+Sns,Base+Sns+Evt) 단체
+        /// (eventInflow, 파티는 plan.EventPartySize 로 override).
         /// </summary>
         public static List<ServiceOrderState> BuildOrders(GenreDemandPlan plan, IReadOnlyList<CustomerArchetypeDef> customers)
         {
@@ -84,6 +85,8 @@ namespace ClientIsKing.Service
                 }
             }
 
+            int snsEnd = plan.BaseOrderCount + plan.BonusOrderCount;
+
             var orders = new List<ServiceOrderState>();
             for (int i = 0; i < plan.OrderCount; i++)
             {
@@ -93,15 +96,19 @@ namespace ClientIsKing.Service
                 {
                     throw new InvalidOperationException($"plan 이 참조하는 고객 '{customerId}' 정의를 찾을 수 없습니다.");
                 }
-                int partySize = GenreSelectionOps.PickPartySize(
-                    plan.Day, i, customerDef.PartySize.Min, customerDef.PartySize.Max);
+
+                bool isEventOrder = i >= snsEnd;
+                int partySize = isEventOrder
+                    ? plan.EventPartySize
+                    : GenreSelectionOps.PickPartySize(plan.Day, i, customerDef.PartySize.Min, customerDef.PartySize.Max);
 
                 orders.Add(new ServiceOrderState
                 {
                     recipeId = recipeId,
                     customerId = customerId,
                     partySize = partySize,
-                    snsInflow = i >= plan.BaseOrderCount,
+                    snsInflow = i >= plan.BaseOrderCount && i < snsEnd,
+                    eventInflow = isEventOrder,
                 });
             }
             return orders;
@@ -122,6 +129,9 @@ namespace ClientIsKing.Service
             state.serviceSnsOrdersServedToday = 0;
             state.serviceSnsOrdersMissedToday = 0;
             state.serviceSnsRevenueToday = 0;
+            state.serviceEventOrdersServedToday = 0;
+            state.serviceEventOrdersMissedToday = 0;
+            state.serviceEventRevenueToday = 0;
         }
 
         /// <summary>처리되지 않은 다음 주문 (없으면 null).</summary>
@@ -284,6 +294,11 @@ namespace ClientIsKing.Service
                 state.serviceSnsOrdersServedToday++;
                 state.serviceSnsRevenueToday += price;
             }
+            if (order.eventInflow)
+            {
+                state.serviceEventOrdersServedToday++;
+                state.serviceEventRevenueToday += price;
+            }
             state.serviceCurrentOrderIndex = FindNextOpenIndex(state, 0);
 
             return new ServiceResult(true,
@@ -307,6 +322,10 @@ namespace ClientIsKing.Service
             if (order.snsInflow)
             {
                 state.serviceSnsOrdersMissedToday++;
+            }
+            if (order.eventInflow)
+            {
+                state.serviceEventOrdersMissedToday++;
             }
             state.serviceCurrentOrderIndex = FindNextOpenIndex(state, 0);
 

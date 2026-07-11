@@ -17,10 +17,20 @@ namespace ClientIsKing.Presentation
         {
         }
 
+        /// <summary>기존 시그니처 보존 overload — EventInflow = false (task-112 F4 하위호환).</summary>
         public ServicePresentationEventArgs(
             bool hasOrder, int day, int orderNumber, int totalOrders,
             string customerId, string recipeId, int partySize,
             bool served, bool missed, int revenueGained, string message, bool snsInflow)
+            : this(hasOrder, day, orderNumber, totalOrders, customerId, recipeId, partySize,
+                served, missed, revenueGained, message, snsInflow, eventInflow: false)
+        {
+        }
+
+        public ServicePresentationEventArgs(
+            bool hasOrder, int day, int orderNumber, int totalOrders,
+            string customerId, string recipeId, int partySize,
+            bool served, bool missed, int revenueGained, string message, bool snsInflow, bool eventInflow)
         {
             HasOrder = hasOrder;
             Day = day;
@@ -34,6 +44,7 @@ namespace ClientIsKing.Presentation
             RevenueGained = revenueGained;
             Message = message ?? "";
             SnsInflow = snsInflow;
+            EventInflow = eventInflow;
         }
 
         /// <summary>false 면 "표시할 주문 없음" 신호 — 손님 슬롯을 비운다.</summary>
@@ -55,6 +66,9 @@ namespace ClientIsKing.Presentation
 
         /// <summary>이 주문이 SNS 보너스 유입인가 (task-111 F3 — 무대/패널 태그 표시 전용).</summary>
         public bool SnsInflow { get; }
+
+        /// <summary>이 주문이 단체 손님 이벤트 유입인가 (task-112 F4 — 무대/패널 태그 표시 전용).</summary>
+        public bool EventInflow { get; }
 
         /// <summary>표시할 주문 없음 신호.</summary>
         public static ServicePresentationEventArgs Empty(int day)

@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using ClientIsKing.EditorTools;
+using ClientIsKing.Events;
 using ClientIsKing.Settlement;
 using ClientIsKing.UI;
 using NUnit.Framework;
@@ -44,6 +46,72 @@ namespace ClientIsKing.Tests.EditMode
                 Assert.IsNotNull(settlementPanel.Find(name), $"{name} 누락");
             }
             Assert.IsFalse(settlementPanel.gameObject.activeSelf, "초기 비활성 유지");
+        }
+
+        // ── task-112 U7: EventEffectText 좌표(F5) + MessageText 이동 ─────────
+
+        [Test]
+        public void Settlement_Panel_Has_EventEffectText_At_F5_Coordinates()
+        {
+            var eventEffectText = settlementPanel.Find("EventEffectText");
+            Assert.IsNotNull(eventEffectText, "Panel_Settlement/EventEffectText 누락");
+            var rt = (RectTransform)eventEffectText;
+            Assert.AreEqual(0f, rt.anchoredPosition.x, 0.01f);
+            Assert.AreEqual(-76f, rt.anchoredPosition.y, 0.01f, "F5: EventEffectText (0,-76)");
+        }
+
+        [Test]
+        public void Settlement_Panel_MessageText_Moved_To_F5_Coordinates()
+        {
+            var messageText = settlementPanel.Find("MessageText");
+            Assert.IsNotNull(messageText, "Panel_Settlement/MessageText 누락");
+            var rt = (RectTransform)messageText;
+            Assert.AreEqual(0f, rt.anchoredPosition.x, 0.01f);
+            Assert.AreEqual(-91f, rt.anchoredPosition.y, 0.01f, "F5: MessageText (0,-91) — 겹침 방지 이동");
+        }
+
+        // ── task-112 F5(Codex 리뷰001 Action2): worst-case 원인 라인이 460px 이내 ──
+
+        [Test]
+        public void EventEffectText_WorstCase_Full_Format_Fits_Within_460px()
+        {
+            // 전체 포맷 최악(≤2종 활성): 단체 +41,800원(beef_gukbap×4×1.05 데모 최대) + 폭등 -99,999원(6자리 여유).
+            var defs = new List<GameEventDefInput>
+            {
+                new GameEventDefInput { Id = "group_customers", DisplayName = "단체 손님", Kind = ClientIsKing.Data.GameEventKind.GroupCustomers, BaseWeight = 0.9f, DurationDays = 1, FlatEffect = 4 },
+                new GameEventDefInput { Id = "ingredient_price_surge", DisplayName = "재료값 폭등", Kind = ClientIsKing.Data.GameEventKind.IngredientPriceSurge, BaseWeight = 1.0f, DurationDays = 2, PercentEffect = 0.35f },
+            };
+            var fx = new EventDayEffects(3, new List<string> { "group_customers", "ingredient_price_surge" }, 1350, 1000, 0, 1, 4, "group_customers");
+            string worstLine = EventOps.BuildSettlementCauseLine(fx, defs, 3, 99999, 1, 41800);
+
+            var eventEffectText = settlementPanel.Find("EventEffectText").GetComponent<TMPro.TMP_Text>();
+            eventEffectText.text = worstLine;
+            eventEffectText.ForceMeshUpdate();
+            var preferred = eventEffectText.GetPreferredValues(worstLine);
+            Assert.LessOrEqual(preferred.x, 460f, $"전체 포맷 worst-case 폭 {preferred.x:F1}px 이 460px 를 초과함: '{worstLine}'");
+        }
+
+        [Test]
+        public void EventEffectText_WorstCase_Abbreviated_Format_Fits_Within_460px()
+        {
+            // 축약 포맷 최악(4종 동시 활성, 같은 최악값).
+            var defs = new List<GameEventDefInput>
+            {
+                new GameEventDefInput { Id = "group_customers", DisplayName = "단체 손님", Kind = ClientIsKing.Data.GameEventKind.GroupCustomers, BaseWeight = 0.9f, DurationDays = 1, FlatEffect = 4 },
+                new GameEventDefInput { Id = "hygiene_inspection", DisplayName = "위생 점검", Kind = ClientIsKing.Data.GameEventKind.HygieneInspection, BaseWeight = 0.8f, DurationDays = 1, FlatEffect = 8000 },
+                new GameEventDefInput { Id = "ingredient_price_surge", DisplayName = "재료값 폭등", Kind = ClientIsKing.Data.GameEventKind.IngredientPriceSurge, BaseWeight = 1.0f, DurationDays = 2, PercentEffect = 0.35f },
+                new GameEventDefInput { Id = "rent_increase", DisplayName = "임대료 인상", Kind = ClientIsKing.Data.GameEventKind.RentIncrease, BaseWeight = 0.6f, DurationDays = 0, PercentEffect = 0.15f },
+            };
+            var fx = new EventDayEffects(
+                99, new List<string> { "group_customers", "hygiene_inspection", "ingredient_price_surge", "rent_increase" },
+                1350, 1150, 8000, 1, 4, "group_customers");
+            string worstLine = EventOps.BuildSettlementCauseLine(fx, defs, 99, 99999, 1, 41800);
+
+            var eventEffectText = settlementPanel.Find("EventEffectText").GetComponent<TMPro.TMP_Text>();
+            eventEffectText.text = worstLine;
+            eventEffectText.ForceMeshUpdate();
+            var preferred = eventEffectText.GetPreferredValues(worstLine);
+            Assert.LessOrEqual(preferred.x, 460f, $"축약 포맷 worst-case 폭 {preferred.x:F1}px 이 460px 를 초과함: '{worstLine}'");
         }
 
         [Test]
@@ -229,6 +297,83 @@ namespace ClientIsKing.Tests.EditMode
 
             var text = settlementPanel.Find("SnsEffectText").GetComponent<TMPro.TMP_Text>();
             Assert.AreEqual("", text.text, "SNS 집행 기록이 없으면 SnsEffectText 는 빈 문자열이어야 한다");
+        }
+
+        // ── task-112 U7: 이벤트 원인 라인 (F5) ──────────────────────────────
+
+        [Test]
+        public void EventEffectText_Shows_Cause_Line_When_Surge_Active_On_Day3()
+        {
+            var gameManagerGo = TestSceneSupport.OpenShopSceneWithLiveSingletons();
+            var canvas = gameManagerGo.scene.GetRootGameObjects().First(go => go.name == "Canvas").transform;
+            var settlementPanel = canvas.Find("Panel_Settlement");
+
+            var gm = gameManagerGo.GetComponent<ClientIsKing.Managers.GameManager>();
+            gm.StartNewGame();
+
+            var genreIds = gm.GenreCatalog.Select(gd => gd.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "gukbap", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            ClientIsKing.DayCycle.GameEvents.RaiseGenreSelected(selection.GenreId);
+
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+
+            // Day 1: 전부 포기 -> Settlement -> Night(정산 자동 적용) -> Day 2 Market.
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Settlement, gm.AdvancePhase());
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Night, gm.AdvancePhase());
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Market, gm.AdvancePhase());
+            Assert.AreEqual(2, gm.State.day);
+
+            // Day 2: 전부 포기 -> Settlement -> Night -> Day 3 Market (C4: day3 폭등 신규 활성화).
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Settlement, gm.AdvancePhase());
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Night, gm.AdvancePhase());
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Market, gm.AdvancePhase());
+            Assert.AreEqual(3, gm.State.day, "Day 3 진입 — C4 표상 재료값 폭등 신규 활성화");
+
+            // Day 3: 전부 포기(매출/할증 0) -> Settlement 진입 후 원인 라인 확인.
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Settlement, gm.AdvancePhase());
+
+            var settlementController = settlementPanel.GetComponent<SettlementPanelController>();
+            settlementPanel.gameObject.SetActive(true);
+            TestSceneSupport.ForceOnEnable(settlementController);
+
+            var eventEffectText = settlementPanel.Find("EventEffectText").GetComponent<TMPro.TMP_Text>();
+            Assert.IsTrue(eventEffectText.text.Contains("이벤트:"), $"'{eventEffectText.text}'");
+            Assert.IsTrue(eventEffectText.text.Contains("재료값 폭등"), $"'{eventEffectText.text}'");
+        }
+
+        [Test]
+        public void EventEffectText_Is_Empty_When_No_Active_Events()
+        {
+            var gameManagerGo = TestSceneSupport.OpenShopSceneWithLiveSingletons();
+            var canvas = gameManagerGo.scene.GetRootGameObjects().First(go => go.name == "Canvas").transform;
+            var settlementPanel = canvas.Find("Panel_Settlement");
+
+            var gm = gameManagerGo.GetComponent<ClientIsKing.Managers.GameManager>();
+            gm.StartNewGame(); // Day 1 — activeEvents 빈 목록
+
+            var genreIds = gm.GenreCatalog.Select(gd => gd.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "noodles", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            ClientIsKing.DayCycle.GameEvents.RaiseGenreSelected(selection.GenreId);
+
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+            while (service.CurrentOrder != null) service.SkipCurrentOrder();
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Settlement, gm.AdvancePhase());
+
+            var settlementController = settlementPanel.GetComponent<SettlementPanelController>();
+            settlementPanel.gameObject.SetActive(true);
+            TestSceneSupport.ForceOnEnable(settlementController);
+
+            var eventEffectText = settlementPanel.Find("EventEffectText").GetComponent<TMPro.TMP_Text>();
+            Assert.AreEqual("", eventEffectText.text, "활성 이벤트가 없으면 EventEffectText 는 빈 문자열이어야 한다");
         }
 
         static System.Collections.Generic.List<T> LoadAll<T>(string folder) where T : UnityEngine.Object

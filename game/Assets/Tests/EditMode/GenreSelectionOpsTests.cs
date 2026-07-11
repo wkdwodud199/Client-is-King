@@ -554,5 +554,100 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual("office_worker", GenreSelectionOps.PickCustomerId(plan, 6), "roll 1127 → office_worker");
             Assert.AreEqual("student", GenreSelectionOps.PickCustomerId(plan, 7), "roll 4440 → student");
         }
+
+        // ── task-112 D2/D3: 이벤트(단체 손님) 수요 축 ────────────────────────
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_EventBonusOrderCount_Out_Of_Range()
+        {
+            var modifier = new DayModifier(1, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "group_customers", 2, 4);
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsFalse(ok);
+            Assert.IsNull(plan);
+            Assert.IsNotEmpty(reason);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_EventBonus_On_But_PartySize_Or_SourceId_Missing()
+        {
+            var missingSource = new DayModifier(1, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "", 1, 4);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), missingSource, out var p1, out _));
+            Assert.IsNull(p1);
+
+            var partyTooSmall = new DayModifier(1, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "group_customers", 1, 1);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), partyTooSmall, out var p2, out _));
+            Assert.IsNull(p2);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_EventBonus_Off_But_PartySize_Or_SourceId_Set()
+        {
+            var staleSourceId = new DayModifier(1, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "group_customers", 0, 0);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), staleSourceId, out var p1, out _));
+            Assert.IsNull(p1);
+
+            var stalePartySize = new DayModifier(1, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "", 0, 4);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), stalePartySize, out var p2, out _));
+            Assert.IsNull(p2);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_With_Event_Bonus_Sets_EventOrderCount_And_Total()
+        {
+            var modifier = new DayModifier(5, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "group_customers", 1, 4);
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 5, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsTrue(ok, reason);
+            Assert.AreEqual(1, plan.EventBonusOrderCount);
+            Assert.AreEqual(4, plan.EventPartySize);
+            Assert.AreEqual("group_customers", plan.EventSourceId);
+            Assert.AreEqual(plan.BaseOrderCount + plan.BonusOrderCount + 1, plan.OrderCount);
+        }
+
+        [Test]
+        public void PickCustomerId_ThreeWay_Segment_Uses_Base_Pool_For_Event_Index()
+        {
+            // SNS bonus 없음(0), 단체(1) 만 있는 경우 — 세그먼트 [0,Base) base, [Base,Base) SNS 없음, [Base,Base+1) 단체.
+            var modifier = new DayModifier(5, "", 0, new System.Collections.Generic.List<CustomerWeightBoost>(), "group_customers", 1, 4);
+            Assert.IsTrue(GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 5, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason), reason);
+
+            int eventIndex = plan.BaseOrderCount; // BonusOrderCount==0 이므로 base 바로 뒤가 단체 인덱스
+            Assert.AreEqual(plan.BaseOrderCount, eventIndex);
+            // 단체 인덱스는 CustomerWeights(base 풀)를 그대로 사용해야 한다(채널 타겟 무관).
+            string eventCustomer = GenreSelectionOps.PickCustomerId(plan, eventIndex);
+            Assert.Contains(eventCustomer, new System.Collections.Generic.List<string>
+            {
+                "student", "office_worker", "family_parent", "senior_regular",
+            });
+        }
+
+        [Test]
+        public void BasePrefix_And_SnsPrefix_Invariant_Unaffected_By_Group_Customers_Event()
+        {
+            // 이벤트(단체) 유무와 무관하게 base·SNS 구간 pick 이 불변이어야 한다(설계 D3 불변식 2종).
+            var boosts = new System.Collections.Generic.List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1600),
+                new CustomerWeightBoost("office_worker", 1300),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+            var snsOnlyModifier = new DayModifier(2, "short_form", 2, boosts);
+            GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 2, SeedRecipes(), SeedCustomers(), snsOnlyModifier, out var snsOnlyPlan, out _);
+
+            var snsAndEventModifier = new DayModifier(2, "short_form", 2, boosts, "group_customers", 1, 4);
+            Assert.IsTrue(GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 2, SeedRecipes(), SeedCustomers(), snsAndEventModifier, out var snsAndEventPlan, out var reason), reason);
+
+            Assert.AreEqual(snsOnlyPlan.BaseOrderCount, snsAndEventPlan.BaseOrderCount);
+            for (int i = 0; i < snsOnlyPlan.BaseOrderCount; i++)
+            {
+                Assert.AreEqual(GenreSelectionOps.PickCustomerId(snsOnlyPlan, i), GenreSelectionOps.PickCustomerId(snsAndEventPlan, i), $"base 인덱스 {i}: 단체 유무와 무관하게 불변");
+            }
+            // SNS-prefix 불변: Base..Base+Sns-1 구간도 단체 append 와 무관하게 동일해야 한다.
+            for (int i = snsOnlyPlan.BaseOrderCount; i < snsOnlyPlan.BaseOrderCount + snsOnlyPlan.BonusOrderCount; i++)
+            {
+                Assert.AreEqual(GenreSelectionOps.PickCustomerId(snsOnlyPlan, i), GenreSelectionOps.PickCustomerId(snsAndEventPlan, i), $"SNS 인덱스 {i}: 단체 유무와 무관하게 불변");
+            }
+            Assert.AreEqual(snsOnlyPlan.OrderCount + 1, snsAndEventPlan.OrderCount, "단체 1건만큼 총 주문 증가");
+        }
     }
 }

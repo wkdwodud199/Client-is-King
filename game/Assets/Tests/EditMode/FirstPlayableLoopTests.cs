@@ -64,7 +64,10 @@ namespace ClientIsKing.Tests.EditMode
             gm.StartNewGame(); // EditMode 에서 Awake 호출 여부와 무관하게 결정론적 초기화
             var genres = LoadAll<GenreDef>("Assets/Data/Definitions/Genres");
             genres.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
-            gm.EditorInit(genres);
+            // task-112: CanAdvancePhase/TryBuildDayPlan 이 이벤트 catalog 를 요구하므로(EventOps 검증) 여기서도 주입한다.
+            var events = LoadAll<GameEventDef>("Assets/Data/Definitions/Events");
+            events.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            gm.EditorInit(genres, events);
             // task-110: EditMode 에서 loose GameObject 에 AddComponent 로 붙인 컴포넌트는 Awake 가
             // 동기 호출되지 않을 수 있다(씬 로드와 달리 — SceneBuilderTests 는 OpenScene 으로 우회).
             // AdvancePhase() 가 GameManager.Instance/ServiceManager.Instance 를 조회하므로(design.md G3),

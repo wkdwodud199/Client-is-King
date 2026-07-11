@@ -179,5 +179,48 @@ namespace ClientIsKing.Tests.EditMode
 
             Assert.IsTrue(customerText.text.Contains("SNS 유입"), $"보너스 인덱스 주문은 SNS 유입 태그가 있어야 한다: '{customerText.text}'");
         }
+
+        // ── task-112 U7: 단체 손님 태그 표시 (F4) ───────────────────────────
+
+        [Test]
+        public void CustomerText_Shows_Group_Customers_Tag_Only_For_Event_Tagged_Order()
+        {
+            var gameManagerGo = TestSceneSupport.OpenShopSceneWithLiveSingletons();
+            var canvas = gameManagerGo.scene.GetRootGameObjects().First(go => go.name == "Canvas").transform;
+            var marketPanel = canvas.Find("Panel_Market");
+            var servicePanel = canvas.Find("Panel_Service");
+            var controller = servicePanel.GetComponent<ServicePanelController>();
+
+            var gm = gameManagerGo.GetComponent<ClientIsKing.Managers.GameManager>();
+            gm.StartNewGame();
+
+            var genreIds = gm.GenreCatalog.Select(gd => gd.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "bunsik", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            ClientIsKing.DayCycle.GameEvents.RaiseGenreSelected(selection.GenreId);
+
+            gm.State.day = 5; // C4 표상 단체 손님 활성화 day
+            gm.State.activeEvents.Add(new ClientIsKing.Events.ActiveEventState { eventId = "group_customers", remainingDays = 1 });
+
+            var service = ServiceManager.Instance;
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(7, gm.State.serviceOrders.Count, "분식 base 6건 + 단체 보너스 1건");
+
+            marketPanel.gameObject.SetActive(false);
+            servicePanel.gameObject.SetActive(true);
+            TestSceneSupport.ForceOnEnable(controller);
+
+            var customerText = servicePanel.Find("CustomerText").GetComponent<TMPro.TMP_Text>();
+
+            for (int i = 0; i < 6; i++)
+            {
+                Assert.IsFalse(customerText.text.Contains("단체 손님"), $"base 인덱스 {i} 주문은 단체 손님 태그가 없어야 한다: '{customerText.text}'");
+                service.SkipCurrentOrder();
+                TestSceneSupport.ForceOnEnable(controller);
+            }
+
+            Assert.IsTrue(customerText.text.Contains("단체 손님"), $"단체 보너스 인덱스 주문은 단체 손님 태그가 있어야 한다: '{customerText.text}'");
+            Assert.IsTrue(customerText.text.Contains("×4"), $"단체 파티는 4인 고정이어야 한다: '{customerText.text}'");
+        }
     }
 }

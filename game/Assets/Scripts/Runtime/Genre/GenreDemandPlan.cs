@@ -21,7 +21,7 @@ namespace ClientIsKing.Genre
         {
         }
 
-        /// <summary>task-111 확장 생성자 — Base/Bonus 주문 수·보너스 가중치·SourceCampaignId 를 포함한다.</summary>
+        /// <summary>task-111 확장 생성자 — Base/Bonus 주문 수·보너스 가중치·SourceCampaignId 를 포함한다(이벤트 축 중립 위임).</summary>
         public GenreDemandPlan(
             string genreId, int day, int baseOrderCount, int bonusOrderCount,
             IReadOnlyList<string> allowedRecipeIds,
@@ -30,6 +30,22 @@ namespace ClientIsKing.Genre
             IReadOnlyList<string> topCustomerIds,
             int minPricePerCustomer, int maxPricePerCustomer,
             string sourceCampaignId)
+            : this(genreId, day, baseOrderCount, bonusOrderCount, allowedRecipeIds, customerWeights,
+                  bonusCustomerWeights, topCustomerIds, minPricePerCustomer, maxPricePerCustomer,
+                  sourceCampaignId, 0, 0, "")
+        {
+        }
+
+        /// <summary>task-112 확장 생성자 — 이벤트(단체 손님) 보너스 주문 수·파티 크기·소스 이벤트 ID 를 포함한다.</summary>
+        public GenreDemandPlan(
+            string genreId, int day, int baseOrderCount, int bonusOrderCount,
+            IReadOnlyList<string> allowedRecipeIds,
+            IReadOnlyList<CustomerWeightRow> customerWeights,
+            IReadOnlyList<CustomerWeightRow> bonusCustomerWeights,
+            IReadOnlyList<string> topCustomerIds,
+            int minPricePerCustomer, int maxPricePerCustomer,
+            string sourceCampaignId,
+            int eventBonusOrderCount, int eventPartySize, string eventSourceId)
         {
             GenreId = genreId ?? throw new ArgumentNullException(nameof(genreId));
             Day = day;
@@ -42,19 +58,31 @@ namespace ClientIsKing.Genre
             MinPricePerCustomer = minPricePerCustomer;
             MaxPricePerCustomer = maxPricePerCustomer;
             SourceCampaignId = sourceCampaignId ?? "";
+            EventBonusOrderCount = eventBonusOrderCount;
+            EventPartySize = eventPartySize;
+            EventSourceId = eventSourceId ?? "";
         }
 
         public string GenreId { get; }
         public int Day { get; }
 
-        /// <summary>장르 공식값 주문 수 (SNS 보너스 미포함).</summary>
+        /// <summary>장르 공식값 주문 수 (SNS/이벤트 보너스 미포함).</summary>
         public int BaseOrderCount { get; }
 
         /// <summary>SNS 보너스 주문 수 (0~2, neutral 이면 0).</summary>
         public int BonusOrderCount { get; }
 
-        /// <summary>총 주문 수 = BaseOrderCount + BonusOrderCount (기존 프로퍼티 의미 유지 — neutral 에서 기존 값과 동일).</summary>
-        public int OrderCount => BaseOrderCount + BonusOrderCount;
+        /// <summary>이벤트(단체 손님) 보너스 주문 수 (0 또는 1, neutral 이면 0, task-112).</summary>
+        public int EventBonusOrderCount { get; }
+
+        /// <summary>단체 손님 파티 크기 override (0 = 없음, 있으면 2 이상, task-112).</summary>
+        public int EventPartySize { get; }
+
+        /// <summary>이 plan 의 단체 손님 보너스를 발생시킨 이벤트 ID. 빈 문자열 = neutral(이벤트 소스 없음, task-112).</summary>
+        public string EventSourceId { get; }
+
+        /// <summary>총 주문 수 = BaseOrderCount + BonusOrderCount + EventBonusOrderCount (neutral 에서 기존 값과 동일).</summary>
+        public int OrderCount => BaseOrderCount + BonusOrderCount + EventBonusOrderCount;
 
         /// <summary>ID ordinal 오름차순으로 정렬된 허용 recipe ID 목록.</summary>
         public IReadOnlyList<string> AllowedRecipeIds { get; }

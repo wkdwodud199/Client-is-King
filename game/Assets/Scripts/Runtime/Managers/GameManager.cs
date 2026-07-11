@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Events;
 using ClientIsKing.Service;
 using ClientIsKing.Settlement;
 using UnityEngine;
@@ -20,6 +21,7 @@ namespace ClientIsKing.Managers
         public static GameManager Instance { get; private set; }
 
         [SerializeField] private List<GenreDef> genreCatalog = new List<GenreDef>();
+        [SerializeField] private List<GameEventDef> eventCatalog = new List<GameEventDef>();
 
         private GameState state;
         private DayPhaseMachine machine;
@@ -29,6 +31,9 @@ namespace ClientIsKing.Managers
 
         /// <summary>정렬된 genre 4종 catalog (SceneBuilder 가 MainMenu/Shop 양쪽에 동일하게 주입).</summary>
         public IReadOnlyList<GenreDef> GenreCatalog => genreCatalog;
+
+        /// <summary>정렬된 이벤트 4종 catalog (SceneBuilder 가 MainMenu/Shop 양쪽에 동일하게 주입, task-112 E1).</summary>
+        public IReadOnlyList<GameEventDef> EventCatalog => eventCatalog;
 
         private void Awake()
         {
@@ -84,6 +89,65 @@ namespace ClientIsKing.Managers
             return false;
         }
 
+        /// <summary>catalog 에서 id 로 GameEventDef 를 조회한다 (ordinal 비교, task-112 E1).</summary>
+        public bool TryGetEventDef(string id, out GameEventDef def)
+        {
+            if (!string.IsNullOrEmpty(id))
+            {
+                for (int i = 0; i < eventCatalog.Count; i++)
+                {
+                    if (eventCatalog[i] != null && eventCatalog[i].Id == id)
+                    {
+                        def = eventCatalog[i];
+                        return true;
+                    }
+                }
+            }
+            def = null;
+            return false;
+        }
+
+        internal static GameEventDefInput ToEventInput(GameEventDef def)
+        {
+            return new GameEventDefInput
+            {
+                Id = def.Id,
+                DisplayName = def.DisplayName,
+                Kind = def.Kind,
+                BaseWeight = def.BaseWeight,
+                DurationDays = def.DurationDays,
+                PercentEffect = def.PercentEffect,
+                FlatEffect = def.FlatEffect,
+            };
+        }
+
+        internal static List<GameEventDefInput> ToEventInputs(IReadOnlyList<GameEventDef> defs)
+        {
+            var result = new List<GameEventDefInput>();
+            foreach (var def in defs)
+            {
+                if (def != null)
+                {
+                    result.Add(ToEventInput(def));
+                }
+            }
+            return result;
+        }
+
+        /// <summary>오늘(state.day) 활성 이벤트로부터 축 분리 효과를 계산한다 (task-112 E1).</summary>
+        public bool TryBuildTodayEventEffects(out EventDayEffects fx, out string reason)
+        {
+            var defs = ToEventInputs(eventCatalog);
+            return EventOps.TryBuildDayEffects(state.activeEvents, state.day, defs, out fx, out reason);
+        }
+
+        /// <summary>내일(state.day + 1) 예고를 계산한다 (task-112 E1). UI 는 이 DTO 를 재계산하지 않는다.</summary>
+        public bool TryBuildEventForecast(out EventForecast forecast, out string reason)
+        {
+            var defs = ToEventInputs(eventCatalog);
+            return EventOps.TryBuildForecast(state.activeEvents, state.day + 1, defs, out forecast, out reason);
+        }
+
         /// <summary>
         /// 현재 phase 에서 다음 phase 로 진행 가능한지 도메인 규칙으로 판정한다 (design.md G3/H9).
         /// Market→Service: 선택 genre 가 catalog 에 존재하고 TryBuildDayPlan 이 성공해야 한다.
@@ -110,9 +174,36 @@ namespace ClientIsKing.Managers
                     return CanAdvanceFromMarket(out reason);
                 case DayPhase.Service:
                     return CanAdvanceFromService(out reason);
+                case DayPhase.Settlement:
+                    return CanAdvanceFromSettlement(out reason);
+                case DayPhase.Night:
+                    return CanAdvanceFromNight(out reason);
                 default:
                     return true;
             }
+        }
+
+        /// <summary>Settlement 이탈 게이트(task-112 E1) — 오늘 이벤트 효과 계산 실패 시 손상 데이터로 차단.</summary>
+        bool CanAdvanceFromSettlement(out string reason)
+        {
+            if (!TryBuildTodayEventEffects(out _, out reason))
+            {
+                return false;
+            }
+            reason = "";
+            return true;
+        }
+
+        /// <summary>Night 이탈 게이트(task-112 E1) — 내일 활성 이벤트 전이 실패 시 손상 데이터로 차단.</summary>
+        bool CanAdvanceFromNight(out string reason)
+        {
+            var defs = ToEventInputs(eventCatalog);
+            if (!EventOps.TryBuildNextDayActiveEvents(state.activeEvents, state.day + 1, defs, out _, out _, out reason))
+            {
+                return false;
+            }
+            reason = "";
+            return true;
         }
 
         bool CanAdvanceFromMarket(out string reason)
@@ -166,6 +257,9 @@ namespace ClientIsKing.Managers
         /// Settlement 이탈 전에 오늘 정산이 미적용이면 먼저 적용한다 (그 결과 파산이면 머문다).
         /// task-110 게이트: Market→Service 직전에 CanAdvancePhase 를 만족하고 TryStartServiceDay 가
         /// 원자적으로 성공한 경우에만 진행한다. 그 외 phase 는 기존 규칙을 유지한다.
+        /// task-112 E1: Settlement 자동 정산은 오늘 이벤트 효과(fx) 반영 overload 로 계산하고(fx 실패
+        /// 시 현재 phase 유지), Night→Market 경계는 machine.Advance() 직전에 activeEvents 를 원자
+        /// 교체한다(DayPhaseChanged 발행 전 완료 — 별도 GameEvents 불필요).
         /// </summary>
         public DayPhase AdvancePhase()
         {
@@ -175,7 +269,11 @@ namespace ClientIsKing.Managers
             }
             if (state.currentPhase == DayPhase.Settlement && !SettlementOps.IsSettlementApplied(state))
             {
-                var result = SettlementOps.ApplyDailySettlement(state);
+                if (!TryBuildTodayEventEffects(out var fx, out _))
+                {
+                    return state.currentPhase;
+                }
+                var result = SettlementOps.ApplyDailySettlement(state, fx.OperatingCostMilli, fx.OperatingCostFlat);
                 if (result.Bankrupt)
                 {
                     return state.currentPhase;
@@ -202,6 +300,15 @@ namespace ClientIsKing.Managers
                     return state.currentPhase;
                 }
             }
+            else if (state.currentPhase == DayPhase.Night)
+            {
+                var defs = ToEventInputs(eventCatalog);
+                if (!EventOps.TryBuildNextDayActiveEvents(state.activeEvents, state.day + 1, defs, out var next, out _, out _))
+                {
+                    return state.currentPhase;
+                }
+                state.activeEvents = next;
+            }
 
             return machine.Advance();
         }
@@ -217,6 +324,13 @@ namespace ClientIsKing.Managers
         internal void EditorInit(List<GenreDef> genreCatalog)
         {
             this.genreCatalog = genreCatalog;
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입(task-112) — 정렬된 이벤트 4종을 포함한 2-인자 overload.</summary>
+        internal void EditorInit(List<GenreDef> genreCatalog, List<GameEventDef> eventCatalog)
+        {
+            this.genreCatalog = genreCatalog;
+            this.eventCatalog = eventCatalog;
         }
 #endif
     }

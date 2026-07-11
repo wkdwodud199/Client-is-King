@@ -1,5 +1,6 @@
 using System.Collections;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Events;
 using ClientIsKing.Managers;
 using ClientIsKing.Presentation;
 using ClientIsKing.Service;
@@ -27,6 +28,7 @@ namespace ClientIsKing.UI
         [SerializeField] private TMP_Text statsText;
         [SerializeField] private TMP_Text genreEffectText;
         [SerializeField] private TMP_Text snsEffectText;
+        [SerializeField] private TMP_Text eventEffectText;
         [SerializeField] private TMP_Text messageText;
 
         private Coroutine countUpRoutine;
@@ -90,6 +92,10 @@ namespace ClientIsKing.UI
             {
                 snsEffectText.text = BuildSnsEffectLine();
             }
+            if (eventEffectText != null)
+            {
+                eventEffectText.text = BuildEventEffectLine();
+            }
             if (messageText != null)
             {
                 messageText.text = result.Message;
@@ -151,6 +157,29 @@ namespace ClientIsKing.UI
             return $"SNS({displayName}): 어제 {record.costPaid:N0}원 → " +
                 $"유입 {state.serviceSnsOrdersServedToday}/{record.bonusOrderCount}팀 · " +
                 $"매출 +{state.serviceSnsRevenueToday:N0}원";
+        }
+
+        /// <summary>
+        /// 이벤트 원인 라인 (task-112 F5) — 조립·stale 필터·포맷 분기는 EventOps.BuildSettlementCauseLine
+        /// 단일 원천이 처리하고, controller 는 state 원시 필드를 필터링·가공 없이 그대로 전달한다 (C3).
+        /// fx 조회 실패 시 빈 문자열 (표시 전용 — 도메인 게이트가 이미 차단).
+        /// </summary>
+        private static string BuildEventEffectLine()
+        {
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            if (state == null)
+            {
+                return "";
+            }
+            if (!gm.TryBuildTodayEventEffects(out var fx, out _))
+            {
+                return "";
+            }
+            var defs = GameManager.ToEventInputs(gm.EventCatalog);
+            return EventOps.BuildSettlementCauseLine(
+                fx, defs, state.marketSpendDay, state.marketEventSurchargeToday,
+                state.serviceEventOrdersServedToday, state.serviceEventRevenueToday);
         }
 
         private void ApplyNumbers(int gross, int spend, int operating, int net, int cashBefore, int cashAfter)
@@ -218,11 +247,21 @@ namespace ClientIsKing.UI
                 genreEffectText, null);
         }
 
-        /// <summary>SceneBuilder 전용 참조 주입 — SNS 원인 라인 포함 (task-111 U5 채택 대상).</summary>
+        /// <summary>SceneBuilder 전용 참조 주입 — SNS 원인 라인 포함, 기존 시그니처 보존 (이벤트 라인 미배선).</summary>
         internal void EditorInit(
             TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
             TMP_Text cashText, TMP_Text statsText, TMP_Text messageText, TMP_Text genreEffectText,
             TMP_Text snsEffectText)
+        {
+            EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText,
+                genreEffectText, snsEffectText, null);
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입 — 이벤트 원인 라인 포함 (task-112 U6 채택 대상).</summary>
+        internal void EditorInit(
+            TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
+            TMP_Text cashText, TMP_Text statsText, TMP_Text messageText, TMP_Text genreEffectText,
+            TMP_Text snsEffectText, TMP_Text eventEffectText)
         {
             this.grossText = grossText;
             this.spendText = spendText;
@@ -233,6 +272,7 @@ namespace ClientIsKing.UI
             this.messageText = messageText;
             this.genreEffectText = genreEffectText;
             this.snsEffectText = snsEffectText;
+            this.eventEffectText = eventEffectText;
         }
 #endif
     }

@@ -1,5 +1,6 @@
 using System;
 using ClientIsKing.DayCycle;
+using ClientIsKing.Genre;
 
 namespace ClientIsKing.Settlement
 {
@@ -23,11 +24,30 @@ namespace ClientIsKing.Settlement
         }
 
         /// <summary>
-        /// 오늘 정산을 적용한다. 이미 적용된 날이면 저장된 정산 필드로 결과만 재구성한다 (설계 5단계).
+        /// 오늘 정산을 적용한다 (neutral, 운영비 배수 1000/가산 0 위임 — 결과 불변). 이미 적용된 날이면
+        /// 저장된 정산 필드로 결과만 재구성한다 (설계 5단계).
         /// </summary>
         public static SettlementResult ApplyDailySettlement(GameState state)
         {
+            return ApplyDailySettlement(state, 1000, 0);
+        }
+
+        /// <summary>
+        /// 이벤트(임대료 인상·위생 점검) 반영 운영비로 오늘 정산을 적용한다 (task-112 D5):
+        /// cost = MulMilliHalfUp(DailyOperatingCost, operatingCostMilli) + operatingCostFlat.
+        /// 이미 적용된 날이면 저장된 정산 필드로 결과만 재구성한다(파라미터 무관 — 멱등).
+        /// </summary>
+        public static SettlementResult ApplyDailySettlement(GameState state, int operatingCostMilli, int operatingCostFlat)
+        {
             Require(state);
+            if (operatingCostMilli <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(operatingCostMilli), "운영비 배수가 잘못되었습니다.");
+            }
+            if (operatingCostFlat < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(operatingCostFlat), "운영비 가산액이 잘못되었습니다.");
+            }
 
             if (IsSettlementApplied(state))
             {
@@ -43,7 +63,7 @@ namespace ClientIsKing.Settlement
 
             int gross = state.serviceRevenueToday;
             int spend = state.marketSpendDay == state.day ? state.marketSpendToday : 0;
-            int cost = DailyOperatingCost;
+            int cost = GenreSelectionOps.MulMilliHalfUp(DailyOperatingCost, operatingCostMilli) + operatingCostFlat;
             int net = gross - spend - cost;
             int cashBefore = state.cash;
 

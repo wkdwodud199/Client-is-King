@@ -18,6 +18,6 @@ MonoBehaviour:
   baseWeight: 0.9
   durationDays: 1
   percentEffect: 0
-  flatEffect: 6
-  description: "\uD68C\uC2DD \uB2E8\uCCB4\uAC00 \uC608\uACE0 \uC5C6\uC774 \uBC29\uBB38\uD55C\uB2E4.
-    \uC190\uB2D8 +6\uBA85 (1\uC77C)."
+  flatEffect: 4
+  description: "\uD68C\uC2DD \uB2E8\uCCB4 1\uD300(4\uC778)\uC774 \uC608\uC57D \uBC29\uBB38\uD55C\uB2E4.
+    \uC7AC\uB8CC\uB97C \uB109\uB109\uD788 \uC900\uBE44\uD558\uC790 (1\uC77C)."

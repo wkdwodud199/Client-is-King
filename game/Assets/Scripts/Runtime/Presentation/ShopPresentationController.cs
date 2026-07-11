@@ -130,9 +130,12 @@ namespace ClientIsKing.Presentation
             if (customerLabel != null)
             {
                 // task-111 F3: SNS 유입 주문만 Jade Green 태그 (TMP rich text) — 게임 규칙에는 관여하지 않는다.
+                // task-112 F4: 단체 손님 주문만 Brass Amber `단체` 태그 (SNS 의 Jade Green 과 구분).
                 customerLabel.text = args.SnsInflow
                     ? $"×{args.PartySize} <color=#4FAE82>SNS</color>"
-                    : $"×{args.PartySize}";
+                    : args.EventInflow
+                        ? $"×{args.PartySize} <color=#E5A84B>단체</color>"
+                        : $"×{args.PartySize}";
             }
             if (orderLabel != null)
             {

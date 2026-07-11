@@ -224,5 +224,65 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsTrue(detailNumbers.text.Contains($"SNS 유입 +{bonusOrders}팀 예정"),
                 $"보너스가 있는 날은 SNS 유입 예정 문구가 표시되어야 함: '{detailNumbers.text}'");
         }
+
+        // ── task-112 U7: 오늘 활성 이벤트 표시(F3) — 인상 재료가/단체 예정 ───
+
+        [Test]
+        public void Confirming_Genre_With_Active_Surge_Shows_Today_Event_Suffix_And_Raised_Price()
+        {
+            var gm = ClientIsKing.Managers.GameManager.Instance;
+            var modal = canvas.Find("Panel_GenreSelection");
+
+            // Day 1 게이트(TrySelect 계약)를 먼저 만족시킨 뒤 day/activeEvents 를 진행시킨다.
+            modal.Find("Button_Gukbap").GetComponent<Button>().onClick.Invoke();
+            modal.Find("ConfirmButton").GetComponent<Button>().onClick.Invoke();
+            Assert.AreEqual("gukbap", gm.State.selectedGenreId);
+
+            gm.State.day = 3; // C4 표상 재료값 폭등 신규 활성화 day
+            gm.State.activeEvents.Add(new ClientIsKing.Events.ActiveEventState { eventId = "ingredient_price_surge", remainingDays = 2 });
+
+            var marketController = marketPanel.GetComponent<MarketPanelController>();
+            // OnToggleGenreDetail 은 RefreshGenreSelectionUI 만 재호출한다(costText 는 RefreshAll 소관) —
+            // 재료 예상가 재렌더까지 확인하려면 OnEnable 경로(RefreshAll 포함)를 강제해야 한다.
+            TestSceneSupport.ForceOnEnable(marketController);
+            var detailButton = marketPanel.Find("GenreDetailButton").GetComponent<Button>();
+            detailButton.onClick.Invoke(); // 상세 보기 재오픈 -> RefreshGenreDetail 재렌더
+
+            var detailNumbers = modal.Find("Detail").Find("DetailNumbers").GetComponent<TMPro.TMP_Text>();
+            Assert.IsTrue(detailNumbers.text.Contains("오늘: 재료값 폭등 +35%"),
+                $"활성 폭등은 확정 상세에 표시되어야 함: '{detailNumbers.text}'");
+
+            // 재료 예상가는 EconomyManager.TryCalculatePurchaseCost(장르+이벤트 합성) 단일 경로를 거쳐야 한다 —
+            // 인상 전 가격 그대로면 오류. 현재 표시 중인 재료(국밥 매칭 첫 재료)를 라벨로 역탐색한다.
+            var ingredientLabel = marketPanel.Find("IngredientLabel").GetComponent<TMPro.TMP_Text>();
+            var costText = marketPanel.Find("CostText").GetComponent<TMPro.TMP_Text>();
+            var economy = ClientIsKing.Economy.EconomyManager.Instance;
+            var shownDef = marketController.IngredientDefs.First(d =>
+                d.Grade == ClientIsKing.Data.IngredientGrade.C
+                && d.DisplayName.StartsWith(ingredientLabel.text));
+            Assert.IsTrue(economy.TryCalculatePurchaseCost(shownDef, 1, out var expectedCost, out _));
+            Assert.IsTrue(costText.text.Contains($"{expectedCost:N0}"), $"예상 비용에 이벤트 인상가가 반영되어야 함: '{costText.text}'");
+        }
+
+        [Test]
+        public void Confirming_Genre_With_Active_Group_Customers_Shows_Today_Event_Suffix()
+        {
+            var gm = ClientIsKing.Managers.GameManager.Instance;
+            var modal = canvas.Find("Panel_GenreSelection");
+
+            modal.Find("Button_Bunsik").GetComponent<Button>().onClick.Invoke();
+            modal.Find("ConfirmButton").GetComponent<Button>().onClick.Invoke();
+            Assert.AreEqual("bunsik", gm.State.selectedGenreId);
+
+            gm.State.day = 5; // C4 표상 단체 손님 활성화 day
+            gm.State.activeEvents.Add(new ClientIsKing.Events.ActiveEventState { eventId = "group_customers", remainingDays = 1 });
+
+            var detailButton = marketPanel.Find("GenreDetailButton").GetComponent<Button>();
+            detailButton.onClick.Invoke();
+
+            var detailNumbers = modal.Find("Detail").Find("DetailNumbers").GetComponent<TMPro.TMP_Text>();
+            Assert.IsTrue(detailNumbers.text.Contains("단체 +1팀(4인) 예정"),
+                $"활성 단체 손님은 확정 상세에 표시되어야 함: '{detailNumbers.text}'");
+        }
     }
 }
