@@ -15,7 +15,7 @@ MonoBehaviour:
   id: photo_feed
   displayName: "\uD53D\uCCD0\uADF8\uB7A8"
   channel: 0
-  baseCost: 50000
+  baseCost: 15000
   baseReach: 0.25
   repeatDecay: 0.85
   audienceAffinities:

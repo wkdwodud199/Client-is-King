@@ -28,6 +28,7 @@ namespace ClientIsKing.UI
         {
             GameEvents.DayPhaseChanged += OnDayPhaseChanged;
             GameEvents.GenreSelected += OnGenreSelected;
+            GameEvents.SNSCampaignExecuted += OnSnsCampaignExecuted;
             advanceButton.onClick.AddListener(OnAdvanceClicked);
             if (advanceLabel == null && advanceButton != null)
             {
@@ -40,6 +41,7 @@ namespace ClientIsKing.UI
         {
             GameEvents.DayPhaseChanged -= OnDayPhaseChanged;
             GameEvents.GenreSelected -= OnGenreSelected;
+            GameEvents.SNSCampaignExecuted -= OnSnsCampaignExecuted;
             if (advanceButton != null)
             {
                 advanceButton.onClick.RemoveListener(OnAdvanceClicked);
@@ -67,6 +69,12 @@ namespace ClientIsKing.UI
             RefreshGenreBadge();
         }
 
+        /// <summary>SNS 집행 확정 수신 — badge 갱신 대비 (task-111 E3 구독 계약).</summary>
+        private void OnSnsCampaignExecuted(string campaignId)
+        {
+            RefreshGenreBadge();
+        }
+
         private void Update()
         {
             // task-110: 다른 controller 가 끈 버튼을 무조건 다시 켜던 비교식을 제거하고,
@@ -87,6 +95,9 @@ namespace ClientIsKing.UI
         private void OnDayPhaseChanged(DayPhaseChangedEventArgs args)
         {
             Refresh(args.Day, args.CurrentPhase);
+            // task-111 F5: day/phase 전환 시 badge 주문 수 재계산 — Night→Market 전환 후
+            // 낡은 주문 수가 남던 결함 보정 (Start/GenreSelected 만으로는 갱신 누락).
+            RefreshGenreBadge();
         }
 
         private void Refresh(int day, DayPhase phase)
@@ -125,10 +136,18 @@ namespace ClientIsKing.UI
                 return;
             }
             // 주문 수는 plan 경로에서 읽는다 — UI 가 SO 배수를 직접 계산하지 않는다 (G2).
+            // task-111 F5: SNS 보너스가 있는 날은 `{base}+{bonus}건(SNS)` 로 인과를 표시한다.
             var service = ServiceManager.Instance;
-            genreBadge.text = service != null && service.TryBuildDayPlan(def, out var plan, out _)
-                ? $"{def.DisplayName} · 주문 {plan.OrderCount}건"
-                : def.DisplayName;
+            if (service != null && service.TryBuildDayPlan(def, out var plan, out _))
+            {
+                genreBadge.text = plan.BonusOrderCount > 0
+                    ? $"{def.DisplayName} · 주문 {plan.BaseOrderCount}+{plan.BonusOrderCount}건(SNS)"
+                    : $"{def.DisplayName} · 주문 {plan.OrderCount}건";
+            }
+            else
+            {
+                genreBadge.text = def.DisplayName;
+            }
         }
 
         /// <summary>phase 별 진행 버튼 라벨 (task-107 설계 11단계).</summary>

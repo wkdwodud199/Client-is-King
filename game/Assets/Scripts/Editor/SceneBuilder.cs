@@ -118,7 +118,7 @@ namespace ClientIsKing.EditorTools
             var marketPanel = BuildMarketPanel(canvasGo.transform, genreModal);
             var servicePanel = BuildServicePanel(canvasGo.transform);
             var settlementPanel = BuildSettlementPanel(canvasGo.transform);
-            var nightPanel = BuildNightPanel(canvasGo.transform);
+            var nightPanel = BuildNightPanel(canvasGo.transform, advanceButton);
 
             // 초기 표시는 Market(미선택 → modal 노출) — 런타임에서는 controller 가 상태에 맞춰 토글한다.
             marketPanel.SetActive(true);
@@ -152,11 +152,12 @@ namespace ClientIsKing.EditorTools
             // 경제/인벤토리 매니저(task-105)는 같은 GO 에 탑재 — DontDestroyOnLoad 를 함께 탄다.
             // task-110 (U5): MainMenu/Shop 양쪽에 동일한 정렬 catalog 를 주입해 persistent
             // instance 가 어느 씬에서 생존해도 lookup/plan 검증을 잃지 않는다 (design.md G3).
+            // task-111 (U5): SNS catalog 도 양쪽 동일 주입 (ID ordinal 정렬 — E2).
             var go = new GameObject("GameManager", typeof(GameManager));
             go.GetComponent<GameManager>().EditorInit(LoadGenreDefs());
             go.AddComponent<EconomyManager>();
             go.AddComponent<InventoryManager>();
-            go.AddComponent<ServiceManager>().EditorInit(LoadRecipeDefs(), LoadCustomerDefs());
+            go.AddComponent<ServiceManager>().EditorInit(LoadRecipeDefs(), LoadCustomerDefs(), LoadSnsCampaignDefs());
             go.AddComponent<SettlementManager>();
         }
 
@@ -683,17 +684,20 @@ namespace ClientIsKing.EditorTools
             // task-110: 전문 분야 원인 한 줄 — stats 아래·message 위 (message 는 하단으로 압축).
             var genreEffectText = CreateText(panel.transform, "GenreEffectText", "", 10f,
                 new Vector2(0f, -48f), new Vector2(460f, 14f));
+            // task-111 (F4): SNS 원인 한 줄 — GenreEffectText 아래, message 는 하단으로 추가 압축 (겹침 금지).
+            var snsEffectText = CreateText(panel.transform, "SnsEffectText", "", 10f,
+                new Vector2(0f, -62f), new Vector2(460f, 14f));
             var messageText = CreateText(panel.transform, "MessageText", "", 11f,
-                new Vector2(0f, -76f), new Vector2(460f, 28f));
+                new Vector2(0f, -84f), new Vector2(460f, 24f));
 
             var controller = panel.AddComponent<SettlementPanelController>();
             controller.EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText,
-                genreEffectText);
+                genreEffectText, snsEffectText);
             return panel;
         }
 
-        // ── Night 하루 마감 UI (task-107 — SNS/저장은 task-109/111 이 추가) ──
-        static GameObject BuildNightPanel(Transform parent)
+        // ── Night 하루 마감 + SNS 캠페인 UI (task-107, task-111 F1/F2 좌표·카피 고정) ──
+        static GameObject BuildNightPanel(Transform parent, Button advanceButton)
         {
             var panel = CreateUIObject("Panel_Night", parent);
             var rt = (RectTransform)panel.transform;
@@ -702,16 +706,53 @@ namespace ClientIsKing.EditorTools
             rt.sizeDelta = PhasePanelSize;
             panel.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.25f, 0.85f);
 
-            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 17f,
-                new Vector2(0f, 52f), new Vector2(440f, 26f));
-            var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 13f,
-                new Vector2(0f, 24f), new Vector2(440f, 20f));
-            var statusText = CreateText(panel.transform, "StatusText", "", 12f,
-                new Vector2(0f, -34f), new Vector2(460f, 70f));
+            // F1: 기존 3텍스트 재배치·축소 + SNS 블록 (로컬 y ±100, 상단 여백 7px·하단 12px).
+            var summaryText = CreateText(panel.transform, "SummaryText", "Day 1 마감", 13f,
+                new Vector2(0f, 84f), new Vector2(440f, 18f));
+            var daysText = CreateText(panel.transform, "DaysText", "완료 일수 0일", 10f,
+                new Vector2(0f, 66f), new Vector2(440f, 14f));
+            var followerText = CreateText(panel.transform, "FollowerText", "팔로워 120명", 11f,
+                new Vector2(0f, 50f), new Vector2(440f, 14f));
+            var snsTitleText = CreateText(panel.transform, "SnsTitleText", "SNS 캠페인 — 내일의 손님을 설계하세요", 12f,
+                new Vector2(0f, 32f), new Vector2(440f, 16f));
+
+            // 채널 버튼 3종 — F2 카피 (2행 라벨은 controller 가 preview 실시간 값으로 갱신).
+            var photoFeed = CreateSnsCampaignButton(panel.transform, "Button_Sns_PhotoFeed", -150f,
+                "픽쳐그램 15,000원\n직장인·가족 · 내일 +2팀");
+            var shortForm = CreateSnsCampaignButton(panel.transform, "Button_Sns_ShortForm", 0f,
+                "숏핑 12,000원\n학생·직장인 · 내일 +2팀");
+            var localBoard = CreateSnsCampaignButton(panel.transform, "Button_Sns_LocalBoard", 150f,
+                "동네게시판 7,000원\n어르신·가족 · 내일 +1팀");
+
+            var snsInfoText = CreateText(panel.transform, "SnsInfoText", "", 11f,
+                new Vector2(0f, -40f), new Vector2(460f, 28f));
+            var statusText = CreateText(panel.transform, "StatusText", "", 11f,
+                new Vector2(0f, -72f), new Vector2(460f, 32f));
+
+            // focus 순서 픽쳐그램→숏핑→동네게시판→다음 날 ▶ — 좌우 방향키 explicit navigation (F2).
+            LinkHorizontalNavigation(photoFeed, shortForm, localBoard, advanceButton);
 
             var controller = panel.AddComponent<NightPanelController>();
-            controller.EditorInit(summaryText, daysText, statusText);
+            controller.EditorInit(summaryText, daysText, statusText,
+                followerText, snsTitleText, photoFeed, shortForm, localBoard, snsInfoText, advanceButton);
             return panel;
+        }
+
+        /// <summary>SNS 채널 버튼 — Night Blue/Steam Cream 라벨 2행 11pt, 집행 완료 outline 은 controller 가 켠다 (F1/F2).</summary>
+        static Button CreateSnsCampaignButton(Transform parent, string name, float x, string label)
+        {
+            var button = CreateButton(parent, name, label, new Vector2(x, 0f), new Vector2(140f, 46f));
+            button.GetComponent<Image>().color = NightBlue;
+            var text = button.GetComponentInChildren<TMP_Text>();
+            text.fontSize = 11f;
+            text.color = SteamCream;
+
+            // 집행 완료 표시 outline 2px (Gochujang Red) — 기본 꺼짐 (색만으로 상태 전달 금지).
+            var outline = button.gameObject.AddComponent<Outline>();
+            outline.effectColor = GochujangRed;
+            outline.effectDistance = new Vector2(2f, 2f);
+            outline.enabled = false;
+            return button;
         }
 
         /// <summary>시드 GenreDef 4종을 id 순으로 로드한다 (MainMenu/Shop 동일 정렬 catalog — task-110).</summary>
@@ -729,6 +770,16 @@ namespace ClientIsKing.EditorTools
         {
             return AssetDatabase.FindAssets("t:RecipeDef", new[] { "Assets/Data/Definitions/Recipes" })
                 .Select(guid => AssetDatabase.LoadAssetAtPath<RecipeDef>(AssetDatabase.GUIDToAssetPath(guid)))
+                .Where(def => def != null)
+                .OrderBy(def => def.Id, System.StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>시드 SNSCampaignDef 3종을 id 순으로 로드한다 (local_board, photo_feed, short_form — task-111 E2).</summary>
+        static List<SNSCampaignDef> LoadSnsCampaignDefs()
+        {
+            return AssetDatabase.FindAssets("t:SNSCampaignDef", new[] { "Assets/Data/Definitions/SNS" })
+                .Select(guid => AssetDatabase.LoadAssetAtPath<SNSCampaignDef>(AssetDatabase.GUIDToAssetPath(guid)))
                 .Where(def => def != null)
                 .OrderBy(def => def.Id, System.StringComparer.Ordinal)
                 .ToList();

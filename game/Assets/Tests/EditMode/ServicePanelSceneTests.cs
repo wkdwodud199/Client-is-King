@@ -122,5 +122,62 @@ namespace ClientIsKing.Tests.EditMode
             var gradeButton = servicePanel.Find("GradeButton").GetComponent<UnityEngine.UI.Button>();
             Assert.IsFalse(gradeButton.gameObject.activeSelf, "task-110 UI 는 등급 토글을 숨겨야 한다");
         }
+
+        // ── task-111 U6: SNS 유입 태그 표시 ─────────────────────────────────
+
+        [Test]
+        public void CustomerText_Shows_Sns_Inflow_Tag_Only_For_Tagged_Orders()
+        {
+            var gameManagerGo = TestSceneSupport.OpenShopSceneWithLiveSingletons();
+            var canvas = gameManagerGo.scene.GetRootGameObjects().First(go => go.name == "Canvas").transform;
+            var marketPanel = canvas.Find("Panel_Market");
+            var servicePanel = canvas.Find("Panel_Service");
+            var controller = servicePanel.GetComponent<ServicePanelController>();
+
+            var gm = gameManagerGo.GetComponent<ClientIsKing.Managers.GameManager>();
+            gm.StartNewGame();
+
+            // 장르 선택은 Day 1 게이트(TrySelect 계약)이므로 day 를 바꾸기 전에 먼저 확정한다.
+            var genreIds = gm.GenreCatalog.Select(gd => gd.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "bunsik", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            ClientIsKing.DayCycle.GameEvents.RaiseGenreSelected(selection.GenreId);
+
+            // 어제(Day 1) short_form 을 집행한 것으로 history 를 구성해 Day 2 plan 에 보너스가 실리게 한다.
+            var service = ServiceManager.Instance;
+            var shortForm = service.SnsCampaignDefs.First(d => d.Id == "short_form");
+            var shortFormInput = ServiceManager.ToSnsCampaignInput(shortForm);
+            int reachMilli = ClientIsKing.Social.SNSCampaignOps.ProjectMilli(shortFormInput.BaseReach);
+            int bonusOrders = ClientIsKing.Social.SNSCampaignOps.CalculateBonusOrderCount(reachMilli);
+            Assert.Greater(bonusOrders, 0, "short_form 첫 집행은 보너스 주문이 있어야 시나리오가 성립한다");
+
+            gm.State.day = 2;
+            gm.State.snsCampaignHistory.Add(new ClientIsKing.Social.SNSCampaignRecord
+            {
+                campaignId = "short_form",
+                executedOnDay = 1,
+                bonusOrderCount = bonusOrders,
+                effectiveMilliReach = reachMilli,
+            });
+
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(6 + bonusOrders, gm.State.serviceOrders.Count, "분식 base 6건 + 보너스 태그 주문");
+
+            marketPanel.gameObject.SetActive(false);
+            servicePanel.gameObject.SetActive(true);
+            TestSceneSupport.ForceOnEnable(controller);
+
+            var customerText = servicePanel.Find("CustomerText").GetComponent<TMPro.TMP_Text>();
+
+            // base 구간(인덱스 0..5)을 전부 포기 처리해 보너스 태그 주문까지 진행한다.
+            for (int i = 0; i < 6; i++)
+            {
+                Assert.IsFalse(customerText.text.Contains("SNS 유입"), $"base 인덱스 {i} 주문은 SNS 유입 태그가 없어야 한다: '{customerText.text}'");
+                service.SkipCurrentOrder();
+                TestSceneSupport.ForceOnEnable(controller);
+            }
+
+            Assert.IsTrue(customerText.text.Contains("SNS 유입"), $"보너스 인덱스 주문은 SNS 유입 태그가 있어야 한다: '{customerText.text}'");
+        }
     }
 }

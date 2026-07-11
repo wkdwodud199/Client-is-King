@@ -424,5 +424,132 @@ namespace ClientIsKing.Tests.EditMode
                 Assert.AreEqual(ordersA[i].partySize, ordersB[i].partySize, $"주문 {i} partySize 결정론");
             }
         }
+
+        // ── task-111 D3: SNS 보너스 주문 태그·통계 ──────────────────────────
+
+        [Test]
+        public void BuildOrders_From_Plan_Tags_Only_Bonus_Indices_As_SnsInflow()
+        {
+            var genreDef = LoadAll<GenreDef>("Assets/Data/Definitions/Genres").First(g => g.Id == "bunsik");
+            var recipes = Recipes;
+            var customers = Customers;
+
+            var genreInput = new GenreDefInput
+            {
+                Id = genreDef.Id,
+                IsGeneralist = false,
+                CookTimeMultiplier = genreDef.CookTimeMultiplier,
+                PricePerCustomerMultiplier = genreDef.PricePerCustomerMultiplier,
+                CustomerAffinities = genreDef.CustomerAffinities
+                    .Select(a => new GenreAffinityInput(a.Archetype.Id, a.Multiplier)).ToList(),
+            };
+            var recipeInputs = recipes.Select(r => new RecipeDefInput { Id = r.Id, GenreId = r.Genre.Id, BasePrice = r.BasePrice }).ToList();
+            var customerInputs = customers.Select(c => new CustomerDefInput
+            {
+                Id = c.Id, BaseSpawnWeight = c.BaseSpawnWeight, AgeBand = c.AgeBand, Gender = c.Gender,
+            }).ToList();
+
+            var boosts = new List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1600),
+                new CustomerWeightBoost("office_worker", 1300),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+            var modifier = new DayModifier(2, "short_form", 2, boosts);
+
+            Assert.IsTrue(GenreSelectionOps.TryBuildDemandPlan(genreInput, 2, recipeInputs, customerInputs, modifier, out var plan, out var reason), reason);
+            Assert.AreEqual(8, plan.OrderCount);
+
+            var orders = ServiceOps.BuildOrders(plan, customers);
+            Assert.AreEqual(8, orders.Count);
+            for (int i = 0; i < orders.Count; i++)
+            {
+                bool expectedTag = i >= plan.BaseOrderCount;
+                Assert.AreEqual(expectedTag, orders[i].snsInflow, $"주문 {i} snsInflow 태그");
+            }
+        }
+
+        [Test]
+        public void StartServiceDay_Resets_Sns_Daily_Stats()
+        {
+            var state = new GameState
+            {
+                serviceSnsOrdersServedToday = 9,
+                serviceSnsOrdersMissedToday = 9,
+                serviceSnsRevenueToday = 9999,
+            };
+
+            ServiceOps.StartServiceDay(state, new List<ServiceOrderState>(), 4);
+
+            Assert.AreEqual(0, state.serviceSnsOrdersServedToday);
+            Assert.AreEqual(0, state.serviceSnsOrdersMissedToday);
+            Assert.AreEqual(0, state.serviceSnsRevenueToday);
+        }
+
+        [Test]
+        public void TryServe_Sns_Tagged_Order_Updates_Sns_Stats_Only_For_Tagged()
+        {
+            var recipe = Recipe("pork_gukbap");
+            var state = new GameState();
+            var orders = new List<ServiceOrderState>
+            {
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 2, snsInflow = true },
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 1, snsInflow = false },
+            };
+            ServiceOps.StartServiceDay(state, orders, 1);
+            InventoryOps.Add(state, IngredientKind.Pork, IngredientGrade.C, 10);
+            InventoryOps.Add(state, IngredientKind.Rice, IngredientGrade.C, 10);
+            InventoryOps.Add(state, IngredientKind.Vegetable, IngredientGrade.C, 10);
+
+            var first = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C);
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.AreEqual(1, state.serviceSnsOrdersServedToday);
+            Assert.AreEqual(first.RevenueGained, state.serviceSnsRevenueToday);
+
+            var second = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C);
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreEqual(1, state.serviceSnsOrdersServedToday, "neutral 주문은 SNS 통계에 영향 없음");
+            Assert.AreEqual(first.RevenueGained, state.serviceSnsRevenueToday, "neutral 주문 매출은 SNS 매출에 더해지지 않음");
+            Assert.AreEqual(0, state.serviceSnsOrdersMissedToday);
+        }
+
+        [Test]
+        public void Skip_Sns_Tagged_Order_Updates_Missed_Sns_Stat_Only()
+        {
+            var recipe = Recipe("tteokbokki");
+            var state = new GameState();
+            var orders = new List<ServiceOrderState>
+            {
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "student", partySize = 2, snsInflow = true },
+                new ServiceOrderState { recipeId = recipe.Id, customerId = "office_worker", partySize = 1, snsInflow = false },
+            };
+            ServiceOps.StartServiceDay(state, orders, 1);
+
+            ServiceOps.SkipCurrentOrder(state);
+            Assert.AreEqual(1, state.serviceSnsOrdersMissedToday);
+
+            ServiceOps.SkipCurrentOrder(state);
+            Assert.AreEqual(1, state.serviceSnsOrdersMissedToday, "neutral 포기는 SNS 통계에 영향 없음");
+            Assert.AreEqual(2, state.serviceOrdersMissedToday, "기존 전체 통계는 그대로 갱신");
+        }
+
+        [Test]
+        public void Neutral_Orders_Existing_Numbers_And_Messages_Are_Unchanged()
+        {
+            var recipe = Recipe("pork_gukbap");
+            var state = StateWithOrder(recipe, partySize: 2);
+            InventoryOps.Add(state, IngredientKind.Pork, IngredientGrade.C, 4);
+            InventoryOps.Add(state, IngredientKind.Rice, IngredientGrade.C, 2);
+            InventoryOps.Add(state, IngredientKind.Vegetable, IngredientGrade.C, 2);
+            int expectedPrice = recipe.BasePrice * 2;
+
+            var result = ServiceOps.TryServeCurrentOrder(state, recipe, IngredientGrade.C);
+
+            Assert.IsTrue(result.Success);
+            Assert.AreEqual($"{recipe.DisplayName} ×{2} 서빙 완료 (+{expectedPrice:N0}원)", result.Message, "neutral 메시지 불변");
+            Assert.AreEqual(0, state.serviceSnsOrdersServedToday, "태그 없는 주문은 SNS 통계 영향 없음");
+            Assert.AreEqual(0, state.serviceSnsRevenueToday);
+        }
     }
 }

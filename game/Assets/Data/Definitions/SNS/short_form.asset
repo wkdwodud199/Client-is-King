@@ -15,7 +15,7 @@ MonoBehaviour:
   id: short_form
   displayName: "\uC20F\uD551"
   channel: 1
-  baseCost: 40000
+  baseCost: 12000
   baseReach: 0.3
   repeatDecay: 0.8
   audienceAffinities:

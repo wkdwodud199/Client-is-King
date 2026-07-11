@@ -4,6 +4,7 @@ using ClientIsKing.DayCycle;
 using ClientIsKing.Genre;
 using ClientIsKing.Managers;
 using ClientIsKing.Service;
+using ClientIsKing.Social;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -86,6 +87,72 @@ namespace ClientIsKing.Tests.PlayMode
             // 열린 주문이 있는 채로 다시 호출하면 Service 에 머물러야 한다 (원자성 재확인).
             var secondAttempt = gm.AdvancePhase();
             Assert.AreEqual(DayPhase.Service, secondAttempt, "열린 주문이 있으면 Settlement 로 진행하지 않는다");
+        }
+
+        [UnityTest]
+        public IEnumerator ServiceManager_Survives_Scene_Load_With_Sns_Catalog_Of_Three()
+        {
+            yield return SceneManager.LoadSceneAsync("MainMenu");
+            yield return null;
+            yield return SceneManager.LoadSceneAsync("Shop");
+            yield return null;
+
+            var service = ServiceManager.Instance;
+            Assert.IsNotNull(service, "ServiceManager.Instance 누락");
+            Assert.AreEqual(3, service.SnsCampaignDefs.Count, "SNS catalog 3종 보유");
+            var ids = service.SnsCampaignDefs.Select(d => d.Id).ToList();
+            var sortedIds = new System.Collections.Generic.List<string>(ids);
+            sortedIds.Sort(System.StringComparer.Ordinal);
+            CollectionAssert.AreEqual(sortedIds, ids, "SNS catalog 는 ID ordinal 정렬이어야 한다");
+        }
+
+        [UnityTest]
+        public IEnumerator Night_Execution_Then_Day2_Plan_Has_Bonus_And_Tagged_Orders_Without_Any_Ui()
+        {
+            yield return SceneManager.LoadSceneAsync("MainMenu");
+            yield return null;
+            yield return SceneManager.LoadSceneAsync("Shop");
+            yield return null;
+
+            var gm = GameManager.Instance;
+            Assert.IsNotNull(gm);
+            gm.StartNewGame(); // 이 테스트 전용 상태로 리셋 (UI 는 건드리지 않음 — 순수 도메인 경로 검증)
+
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = GenreSelectionOps.TrySelect(gm.State, "gukbap", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+
+            // Day 1 루프: Market → Service → (전부 포기) → Settlement → Night, UI 없이 도메인 경로만 사용.
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase());
+            var service = ServiceManager.Instance;
+            while (service.CurrentOrder != null)
+            {
+                service.SkipCurrentOrder();
+            }
+            Assert.AreEqual(DayPhase.Settlement, gm.AdvancePhase());
+            Assert.AreEqual(DayPhase.Night, gm.AdvancePhase()); // Settlement 진입 시 정산 자동 적용, 그 다음 호출로 Night 진입
+
+            // Night: SNS 캠페인 1종 집행 (photo_feed) — 순수 도메인 경로.
+            Assert.IsTrue(service.TryExecuteSnsCampaign("photo_feed", out var execResult), execResult.Message);
+            Assert.AreEqual(1, gm.State.snsCampaignHistory.Count);
+
+            // Day 2 진입: Night → Market.
+            Assert.AreEqual(DayPhase.Market, gm.AdvancePhase());
+            Assert.AreEqual(2, gm.State.day, "Night → Market 전환으로 Day 2 진입");
+
+            // Day 2 plan 이 modifier 합성으로 base+bonus 를 반영하는지 확인.
+            gm.TryGetGenre("gukbap", out var genreDef);
+            Assert.IsTrue(service.TryBuildDayPlan(genreDef, out var plan, out var reason), reason);
+            Assert.Greater(plan.BonusOrderCount, 0, "전날 밤 집행 효과로 Day 2 plan 에 보너스 주문이 있어야 한다");
+            Assert.AreEqual(plan.BaseOrderCount + plan.BonusOrderCount, plan.OrderCount);
+
+            // Market → Service 전환까지 실제로 진행해 태그 주문 존재를 도메인 경로로 검증한다.
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(plan.OrderCount, gm.State.serviceOrders.Count, "생성된 주문 수가 plan.OrderCount 와 일치해야 한다");
+            Assert.IsTrue(gm.State.serviceOrders.Skip(plan.BaseOrderCount).All(o => o.snsInflow),
+                "보너스 인덱스 주문은 전부 snsInflow 태그가 있어야 한다");
+            Assert.IsTrue(gm.State.serviceOrders.Take(plan.BaseOrderCount).All(o => !o.snsInflow),
+                "base 인덱스 주문은 snsInflow 태그가 없어야 한다");
         }
     }
 }

@@ -464,6 +464,11 @@ namespace ClientIsKing.UI
                 {
                     // 1인 예상 가격 범위는 plan forecast 값 — UI 가 SO 배수를 직접 계산하지 않는다 (G2).
                     forecastLine += $" · 1인 {plan.MinPricePerCustomer:N0}~{plan.MaxPricePerCustomer:N0}원";
+                    if (plan.BonusOrderCount > 0)
+                    {
+                        // task-111 F5: 어제 SNS 집행의 유입 예정 표시 — plan 값 사용 (UI 직접 계산 금지).
+                        forecastLine += $" · SNS 유입 +{plan.BonusOrderCount}팀 예정";
+                    }
                 }
                 genreDetailNumbersText.text = GenreSelectionCopy.Comparison(genreId) + "\n" + forecastLine;
             }

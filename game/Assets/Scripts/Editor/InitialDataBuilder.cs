@@ -216,18 +216,20 @@ namespace ClientIsKing.EditorTools
         }
 
         // ── SNS 채널 3 (가상 채널명) ────────────────────────────────────────
+        // 비용은 task-111 design.md B1 승인 seed (밸런스 가드 G 근거 — 구현 중 임의 재밸런싱 금지).
+        // 도달률·감쇠율·친화 배수·문구는 task-103 값 유지, GUID 보존 upsert.
         static void BuildSNSCampaigns()
         {
             (string id, string name, SNSChannel channel, int cost, float reach, float decay,
              (AgeBand age, GenderTarget gender, float mult)[] affinities, string desc)[] rows =
             {
-                ("photo_feed", "픽쳐그램", SNSChannel.PhotoFeed, 50000, 0.25f, 0.85f,
+                ("photo_feed", "픽쳐그램", SNSChannel.PhotoFeed, 15000, 0.25f, 0.85f,
                     new[] { (AgeBand.Twenties, GenderTarget.Female, 1.5f), (AgeBand.ThirtiesForties, GenderTarget.Female, 1.2f), (AgeBand.Teens, GenderTarget.All, 1.1f) },
                     "사진 중심 피드. 비주얼 좋은 메뉴가 20~30대 여성에게 잘 퍼진다."),
-                ("short_form", "숏핑", SNSChannel.ShortForm, 40000, 0.30f, 0.80f,
+                ("short_form", "숏핑", SNSChannel.ShortForm, 12000, 0.30f, 0.80f,
                     new[] { (AgeBand.Teens, GenderTarget.All, 1.6f), (AgeBand.Twenties, GenderTarget.All, 1.3f) },
                     "숏폼 영상. 도달은 넓고 빠르지만 반복 사용 시 피로도가 크다."),
-                ("local_board", "동네게시판", SNSChannel.LocalBoard, 25000, 0.15f, 0.90f,
+                ("local_board", "동네게시판", SNSChannel.LocalBoard, 7000, 0.15f, 0.90f,
                     new[] { (AgeBand.FiftiesPlus, GenderTarget.All, 1.5f), (AgeBand.ThirtiesForties, GenderTarget.All, 1.25f) },
                     "지역 커뮤니티. 도달은 좁지만 중장년 단골 전환이 좋고 감쇠가 완만하다."),
             };

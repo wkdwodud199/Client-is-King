@@ -2,7 +2,9 @@ using System.Collections;
 using ClientIsKing.DayCycle;
 using ClientIsKing.Managers;
 using ClientIsKing.Presentation;
+using ClientIsKing.Service;
 using ClientIsKing.Settlement;
+using ClientIsKing.Social;
 using TMPro;
 using UnityEngine;
 
@@ -24,6 +26,7 @@ namespace ClientIsKing.UI
         [SerializeField] private TMP_Text cashText;
         [SerializeField] private TMP_Text statsText;
         [SerializeField] private TMP_Text genreEffectText;
+        [SerializeField] private TMP_Text snsEffectText;
         [SerializeField] private TMP_Text messageText;
 
         private Coroutine countUpRoutine;
@@ -83,6 +86,10 @@ namespace ClientIsKing.UI
             {
                 genreEffectText.text = BuildGenreEffectLine();
             }
+            if (snsEffectText != null)
+            {
+                snsEffectText.text = BuildSnsEffectLine();
+            }
             if (messageText != null)
             {
                 messageText.text = result.Message;
@@ -100,6 +107,50 @@ namespace ClientIsKing.UI
                 return "";
             }
             return $"전문 분야 효과: {def.DisplayName} — {GenreSelectionCopy.Comparison(def.Id)}";
+        }
+
+        /// <summary>
+        /// SNS 원인 라인 (task-111 F4) — 어제(executedOnDay == day-1) 집행 레코드가 있을 때만 표시.
+        /// 유입 0팀(감쇠)도 그대로 표시한다(정직한 낭비 학습). 정산 수학·day 멱등성은 변경하지 않는다.
+        /// </summary>
+        private static string BuildSnsEffectLine()
+        {
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            if (state == null)
+            {
+                return "";
+            }
+            SNSCampaignRecord record = null;
+            foreach (var r in state.snsCampaignHistory)
+            {
+                if (r != null && r.executedOnDay == state.day - 1)
+                {
+                    record = r;
+                    break;
+                }
+            }
+            if (record == null)
+            {
+                return "";
+            }
+            // 표시명 해석 실패 시 campaignId 를 그대로 쓴다 (표시 전용 fallback — 도메인 실패와 구분).
+            string displayName = record.campaignId;
+            var service = ServiceManager.Instance;
+            if (service != null)
+            {
+                foreach (var def in service.SnsCampaignDefs)
+                {
+                    if (def != null && string.Equals(def.Id, record.campaignId, System.StringComparison.Ordinal))
+                    {
+                        displayName = def.DisplayName;
+                        break;
+                    }
+                }
+            }
+            return $"SNS({displayName}): 어제 {record.costPaid:N0}원 → " +
+                $"유입 {state.serviceSnsOrdersServedToday}/{record.bonusOrderCount}팀 · " +
+                $"매출 +{state.serviceSnsRevenueToday:N0}원";
         }
 
         private void ApplyNumbers(int gross, int spend, int operating, int net, int cashBefore, int cashAfter)
@@ -158,10 +209,20 @@ namespace ClientIsKing.UI
             EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText, null);
         }
 
-        /// <summary>SceneBuilder 전용 참조 주입 — 전문 분야 효과 한 줄 포함 (task-110 U5 채택 대상).</summary>
+        /// <summary>SceneBuilder 전용 참조 주입 — 전문 분야 효과 한 줄 포함 (task-110 시그니처 보존, snsEffectText 미배선).</summary>
         internal void EditorInit(
             TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
             TMP_Text cashText, TMP_Text statsText, TMP_Text messageText, TMP_Text genreEffectText)
+        {
+            EditorInit(grossText, spendText, operatingText, netText, cashText, statsText, messageText,
+                genreEffectText, null);
+        }
+
+        /// <summary>SceneBuilder 전용 참조 주입 — SNS 원인 라인 포함 (task-111 U5 채택 대상).</summary>
+        internal void EditorInit(
+            TMP_Text grossText, TMP_Text spendText, TMP_Text operatingText, TMP_Text netText,
+            TMP_Text cashText, TMP_Text statsText, TMP_Text messageText, TMP_Text genreEffectText,
+            TMP_Text snsEffectText)
         {
             this.grossText = grossText;
             this.spendText = spendText;
@@ -171,6 +232,7 @@ namespace ClientIsKing.UI
             this.statsText = statsText;
             this.messageText = messageText;
             this.genreEffectText = genreEffectText;
+            this.snsEffectText = snsEffectText;
         }
 #endif
     }

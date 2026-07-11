@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ClientIsKing.Inventory;
 using ClientIsKing.Service;
+using ClientIsKing.Social;
 
 namespace ClientIsKing.DayCycle
 {
@@ -81,5 +82,19 @@ namespace ClientIsKing.DayCycle
         public bool isBankrupt = false;
         public int bankruptcyDay = 0;
         public string bankruptcyReason = "";
+
+        // ── SNS 마케팅 (task-111) ──
+
+        /// <summary>집행 레코드 히스토리 (run 전체 누적 — 감쇠·DayModifier 재구성의 유일한 원천).</summary>
+        public List<SNSCampaignRecord> snsCampaignHistory = new List<SNSCampaignRecord>();
+
+        /// <summary>당일 SNS 유입 주문 중 서빙 완료 건수 (StartServiceDay 가 리셋).</summary>
+        public int serviceSnsOrdersServedToday = 0;
+
+        /// <summary>당일 SNS 유입 주문 중 포기 건수 (StartServiceDay 가 리셋).</summary>
+        public int serviceSnsOrdersMissedToday = 0;
+
+        /// <summary>당일 SNS 유입 주문의 누적 매출 (원, StartServiceDay 가 리셋).</summary>
+        public int serviceSnsRevenueToday = 0;
     }
 }

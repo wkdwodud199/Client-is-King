@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ClientIsKing.Data;
 using ClientIsKing.DayCycle;
 
 namespace ClientIsKing.Genre
@@ -21,6 +22,15 @@ namespace ClientIsKing.Genre
         public static long RoundHalfUp(double x)
         {
             return (long)Math.Floor(x + 0.5);
+        }
+
+        /// <summary>
+        /// MulMilliHalfUp(a, b) = (a × b + 500) / 1000 — RoundHalfUp(a×b/1000) 의 정수 동치 (비음수 전제, task-111 C1).
+        /// <see cref="Social.SNSCampaignOps.MulMilliHalfUp"/> 와 동일 공식 — Genre 가 Social 을 참조하지 않도록 독립 보유한다.
+        /// </summary>
+        public static int MulMilliHalfUp(int a, int b)
+        {
+            return (int)((a * (long)b + 500) / 1000);
         }
 
         // ── 선택 게이트 ─────────────────────────────────────────────────────
@@ -98,9 +108,10 @@ namespace ClientIsKing.Genre
         // ── 수요 계획 ───────────────────────────────────────────────────────
 
         /// <summary>
-        /// 결정론적 GenreDemandPlan 생성. specialist 는 matching recipe(recipe.GenreId == genre.Id) 만,
-        /// generalist(kind==Generalist) 는 전체 recipe 를 후보로 사용한다.
-        /// 잘못된 정의는 (null, failReason) 을 반환한다 — 상태를 바꾸지 않는다.
+        /// 결정론적 GenreDemandPlan 생성 (task-110 기존 4-입력 overload) — <see cref="DayModifier.Neutral"/>
+        /// 위임으로 결과가 modifier overload 의 neutral 경로와 field-by-field 동등하다.
+        /// specialist 는 matching recipe(recipe.GenreId == genre.Id) 만, generalist(kind==Generalist) 는
+        /// 전체 recipe 를 후보로 사용한다. 잘못된 정의는 (null, failReason) 을 반환한다 — 상태를 바꾸지 않는다.
         /// </summary>
         public static bool TryBuildDemandPlan(
             GenreDefInput genre, int day,
@@ -108,8 +119,47 @@ namespace ClientIsKing.Genre
             IReadOnlyList<CustomerDefInput> customers,
             out GenreDemandPlan plan, out string failReason)
         {
+            return TryBuildDemandPlan(genre, day, recipes, customers, DayModifier.Neutral(day), out plan, out failReason);
+        }
+
+        /// <summary>
+        /// 결정론적 GenreDemandPlan 생성 (task-111 D2 modifier overload). <paramref name="modifier"/> 가
+        /// SNS 보너스 주문·채널 타겟 가중치를 익일 plan 에 합성한다. base 주문 구간(인덱스 0..BaseOrderCount-1)의
+        /// 고객 pick 은 modifier 유무와 무관하게 동일하다(base-prefix 불변).
+        /// </summary>
+        public static bool TryBuildDemandPlan(
+            GenreDefInput genre, int day,
+            IReadOnlyList<RecipeDefInput> recipes,
+            IReadOnlyList<CustomerDefInput> customers,
+            DayModifier modifier,
+            out GenreDemandPlan plan, out string failReason)
+        {
             plan = null;
             failReason = "";
+
+            if (modifier == null)
+            {
+                failReason = "DayModifier 가 없습니다.";
+                return false;
+            }
+            if (modifier.Day != day)
+            {
+                failReason = "DayModifier 의 day 가 plan day 와 일치하지 않습니다.";
+                return false;
+            }
+            if (modifier.BonusOrderCount < 0 || modifier.BonusOrderCount > 2)
+            {
+                failReason = "DayModifier 의 보너스 주문 수가 잘못되었습니다.";
+                return false;
+            }
+            foreach (var boost in modifier.WeightBoosts)
+            {
+                if (boost.BoostMilli <= 0)
+                {
+                    failReason = $"고객 '{boost.CustomerId}' 의 SNS 가중치 배수가 잘못되었습니다.";
+                    return false;
+                }
+            }
 
             if (genre == null)
             {
@@ -189,6 +239,32 @@ namespace ClientIsKing.Genre
             }
             sortedCustomers.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
 
+            // ── D1 boost 커버리지 검증: 빈 목록=전 고객 중립, 비어있지 않으면 정확히 1회씩 커버 ──
+            var boostMilliById = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (modifier.WeightBoosts.Count > 0)
+            {
+                var coveredIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var boost in modifier.WeightBoosts)
+                {
+                    if (!customerIds.Contains(boost.CustomerId))
+                    {
+                        failReason = $"DayModifier 가 알 수 없는 고객 '{boost.CustomerId}' 을(를) 참조합니다.";
+                        return false;
+                    }
+                    if (!coveredIds.Add(boost.CustomerId))
+                    {
+                        failReason = $"DayModifier 에 고객 '{boost.CustomerId}' 가중치가 중복됩니다.";
+                        return false;
+                    }
+                    boostMilliById[boost.CustomerId] = boost.BoostMilli;
+                }
+                if (coveredIds.Count != customerIds.Count)
+                {
+                    failReason = "DayModifier 가 전체 고객을 커버하지 않습니다.";
+                    return false;
+                }
+            }
+
             var affinityById = new Dictionary<string, float>(StringComparer.Ordinal);
             foreach (var affinity in genre.CustomerAffinities)
             {
@@ -244,8 +320,29 @@ namespace ClientIsKing.Genre
 
             var topCustomerIds = BuildTopCustomers(weights, 2);
 
+            // ── D2 보너스 풀: bonusMilli(c) = MulMilliHalfUp(genreMilli(c), boostMilli(c)) ──
+            var bonusWeights = new List<CustomerWeightRow>();
+            if (modifier.BonusOrderCount > 0)
+            {
+                long totalBonusMilli = 0;
+                foreach (var row in weights)
+                {
+                    int boostMilli = boostMilliById.TryGetValue(row.CustomerId, out var b) ? b : 1000;
+                    long bonusMilli = MulMilliHalfUp(row.MilliWeight, boostMilli);
+                    bonusWeights.Add(new CustomerWeightRow(row.CustomerId, (int)bonusMilli));
+                    totalBonusMilli += bonusMilli;
+                }
+                if (totalBonusMilli <= 0)
+                {
+                    failReason = "SNS 보너스 고객 가중치 합이 0입니다.";
+                    return false;
+                }
+            }
+
             plan = new GenreDemandPlan(
-                genre.Id, day, orderCount, allowedRecipeIds, weights, topCustomerIds, minPrice, maxPrice);
+                genre.Id, day, orderCount, modifier.BonusOrderCount,
+                allowedRecipeIds, weights, bonusWeights, topCustomerIds, minPrice, maxPrice,
+                modifier.SourceCampaignId);
             return true;
         }
 
@@ -287,11 +384,15 @@ namespace ClientIsKing.Genre
         /// <summary>
         /// 고객 roll seed = FNV-1a("genreId|day|orderIndex"), roll = seed % totalMilliWeight,
         /// 누적합이 roll 을 처음 초과하는 고객을 선택 (design.md D6/H8 계약).
+        /// orderIndex &lt; BaseOrderCount 면 CustomerWeights(base-prefix 불변), 아니면 BonusCustomerWeights 를 사용한다
+        /// (task-111 D2) — 시드는 두 구간 모두 동일한 FNV-1a("genreId|day|orderIndex") 공식을 쓴다.
         /// </summary>
         public static string PickCustomerId(GenreDemandPlan plan, int orderIndex)
         {
+            var pool = orderIndex < plan.BaseOrderCount ? plan.CustomerWeights : plan.BonusCustomerWeights;
+
             long total = 0;
-            foreach (var row in plan.CustomerWeights)
+            foreach (var row in pool)
             {
                 total += row.MilliWeight;
             }
@@ -304,7 +405,7 @@ namespace ClientIsKing.Genre
             long roll = (long)(seed % (ulong)total);
 
             long cumulative = 0;
-            foreach (var row in plan.CustomerWeights)
+            foreach (var row in pool)
             {
                 cumulative += row.MilliWeight;
                 if (cumulative > roll)
@@ -313,7 +414,7 @@ namespace ClientIsKing.Genre
                 }
             }
             // 부동소수 없는 정수 누적이므로 도달 불가 — 방어적으로 마지막 고객 반환.
-            return plan.CustomerWeights[plan.CustomerWeights.Count - 1].CustomerId;
+            return pool[pool.Count - 1].CustomerId;
         }
 
         const uint FnvOffsetBasis = 2166136261;
@@ -372,5 +473,11 @@ namespace ClientIsKing.Genre
     {
         public string Id;
         public float BaseSpawnWeight;
+
+        /// <summary>고객 연령대 (task-111 — SNS 채널 타겟 매칭 C4 입력).</summary>
+        public AgeBand AgeBand;
+
+        /// <summary>고객 성별 타겟 (task-111 — SNS 채널 타겟 매칭 C4 입력).</summary>
+        public GenderTarget Gender;
     }
 }

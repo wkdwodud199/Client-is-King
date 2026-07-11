@@ -192,5 +192,37 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsFalse(seenLabels.Contains("소고기"), "분식 확정 시 소고기(국밥 전용)는 순환 목록에 없어야 한다");
             Assert.IsFalse(seenLabels.Contains("소면"), "분식 확정 시 소면(면류 전용)은 순환 목록에 없어야 한다");
         }
+
+        // ── task-111 U6: SNS 보너스가 있는 날 Market 상세 문구 ──────────────
+
+        [Test]
+        public void Confirming_Genre_With_Sns_Bonus_Shows_Inflow_Line_In_Detail()
+        {
+            var gm = ClientIsKing.Managers.GameManager.Instance;
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+
+            // 어제(Day 1) 숏핑을 집행한 것으로 history 를 직접 구성 — Night UI 흐름 없이 Market 상세 표시만 검증.
+            var defs = service.SnsCampaignDefs;
+            var shortForm = defs.First(d => d.Id == "short_form");
+            var shortFormInput = ClientIsKing.Service.ServiceManager.ToSnsCampaignInput(shortForm);
+            int reachMilli = ClientIsKing.Social.SNSCampaignOps.ProjectMilli(shortFormInput.BaseReach);
+            int bonusOrders = ClientIsKing.Social.SNSCampaignOps.CalculateBonusOrderCount(reachMilli);
+
+            gm.State.day = 2;
+            gm.State.snsCampaignHistory.Add(new ClientIsKing.Social.SNSCampaignRecord
+            {
+                campaignId = "short_form",
+                executedOnDay = 1,
+                bonusOrderCount = bonusOrders,
+                effectiveMilliReach = reachMilli,
+            });
+
+            var modal = canvas.Find("Panel_GenreSelection");
+            var detailNumbers = modal.Find("Detail").Find("DetailNumbers").GetComponent<TMPro.TMP_Text>();
+            modal.Find("Button_Bunsik").GetComponent<Button>().onClick.Invoke();
+
+            Assert.IsTrue(detailNumbers.text.Contains($"SNS 유입 +{bonusOrders}팀 예정"),
+                $"보너스가 있는 날은 SNS 유입 예정 문구가 표시되어야 함: '{detailNumbers.text}'");
+        }
     }
 }

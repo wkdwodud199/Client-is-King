@@ -149,7 +149,8 @@ namespace ClientIsKing.UI
                 true, state.day, number, state.serviceOrders.Count,
                 order.customerId, order.recipeId, order.partySize,
                 served: false, missed: false, revenueGained: 0,
-                recipe != null ? recipe.DisplayName : order.recipeId);
+                recipe != null ? recipe.DisplayName : order.recipeId,
+                snsInflow: order.snsInflow);
         }
 
         /// <summary>서빙/포기 결과 payload — 처리 전 캡처한 주문 정보를 보존한다.</summary>
@@ -163,7 +164,8 @@ namespace ClientIsKing.UI
                 captured != null ? captured.recipeId : "",
                 captured != null ? captured.partySize : 0,
                 served: !missed, missed: missed,
-                result.RevenueGained, result.Message);
+                result.RevenueGained, result.Message,
+                snsInflow: captured != null && captured.snsInflow);
         }
 
         /// <summary>선택된 전문 분야 정의 (미선택/미초기화는 null → neutral 배수 1.0 경로).</summary>
@@ -251,8 +253,12 @@ namespace ClientIsKing.UI
             }
             if (customerText != null)
             {
+                // task-111 F3: SNS 보너스 유입 주문만 `SNS 유입` 태그 — 인과 증명 표시 전용.
                 customerText.text = customer != null && order != null
-                    ? $"{customer.DisplayName} ×{order.partySize}" : "-";
+                    ? order.snsInflow
+                        ? $"{customer.DisplayName} ×{order.partySize} · SNS 유입"
+                        : $"{customer.DisplayName} ×{order.partySize}"
+                    : "-";
             }
             if (recipeText != null)
             {

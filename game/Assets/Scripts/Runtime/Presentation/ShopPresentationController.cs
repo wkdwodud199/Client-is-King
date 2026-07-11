@@ -129,7 +129,10 @@ namespace ClientIsKing.Presentation
             }
             if (customerLabel != null)
             {
-                customerLabel.text = $"×{args.PartySize}";
+                // task-111 F3: SNS 유입 주문만 Jade Green 태그 (TMP rich text) — 게임 규칙에는 관여하지 않는다.
+                customerLabel.text = args.SnsInflow
+                    ? $"×{args.PartySize} <color=#4FAE82>SNS</color>"
+                    : $"×{args.PartySize}";
             }
             if (orderLabel != null)
             {

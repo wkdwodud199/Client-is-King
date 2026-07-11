@@ -193,5 +193,84 @@ namespace ClientIsKing.Tests.EditMode
             }
             return count;
         }
+
+        // ── task-111 U6: SNS catalog 주입 + Night SNS UI 산출물 + 멱등 ─────
+
+        [Test]
+        public void GameManager_Bootstrap_Has_Sorted_Sns_Catalog_On_Both_Scenes()
+        {
+            var shop = OpenSingle(SceneBuilder.ShopPath);
+            var shopService = Root(shop, "GameManager").GetComponent<ServiceManager>();
+            Assert.AreEqual(3, shopService.SnsCampaignDefs.Count, "SNS 캠페인 3종 주입 (Shop)");
+            var shopIds = shopService.SnsCampaignDefs.Select(d => d.Id).ToList();
+            CollectionAssert.AreEqual(new[] { "local_board", "photo_feed", "short_form" }, shopIds,
+                "SNS catalog 는 ID ordinal 정렬이어야 한다 (Shop)");
+
+            var mainMenu = OpenSingle(SceneBuilder.MainMenuPath);
+            var mainMenuGameManagerGo = Root(mainMenu, "GameManager");
+            Assert.IsNotNull(mainMenuGameManagerGo, "MainMenu GameManager 누락");
+            var mainMenuService = mainMenuGameManagerGo.GetComponent<ServiceManager>();
+            Assert.IsNotNull(mainMenuService, "MainMenu ServiceManager 누락");
+            var mainMenuIds = mainMenuService.SnsCampaignDefs.Select(d => d.Id).ToList();
+            CollectionAssert.AreEqual(shopIds, mainMenuIds, "MainMenu/Shop 양쪽에 동일 정렬 SNS catalog 주입");
+        }
+
+        [Test]
+        public void Night_Panel_Has_Sns_Ui_Objects()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+            var nightPanel = canvasGo.transform.Find("Panel_Night");
+            Assert.IsNotNull(nightPanel, "Panel_Night 누락");
+
+            string[] names =
+            {
+                "FollowerText", "SnsTitleText",
+                "Button_Sns_PhotoFeed", "Button_Sns_ShortForm", "Button_Sns_LocalBoard", "SnsInfoText",
+            };
+            foreach (var name in names)
+            {
+                Assert.IsNotNull(nightPanel.Find(name), $"Panel_Night/{name} 누락");
+            }
+        }
+
+        [Test]
+        public void Settlement_Panel_Has_Sns_Effect_Text()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+            var settlementPanel = canvasGo.transform.Find("Panel_Settlement");
+            Assert.IsNotNull(settlementPanel, "Panel_Settlement 누락");
+            Assert.IsNotNull(settlementPanel.Find("SnsEffectText"), "Panel_Settlement/SnsEffectText 누락");
+        }
+
+        [Test]
+        public void Repeated_Apply_Is_Idempotent_For_Sns_Catalog_And_Night_Object_Count()
+        {
+            // 각 scene 오픈 직후 필요한 값을 전부 읽어둔다 — 다음 OpenScene 이 이전 Transform 참조를
+            // 무효화하므로(MissingReferenceException, task-110 씬 재로드 함정) 참조를 넘겨 들고 있지 않는다.
+            SceneBuilder.Apply();
+            var firstScene = OpenSingle(SceneBuilder.ShopPath);
+            var firstService = Root(firstScene, "GameManager").GetComponent<ServiceManager>();
+            int firstSnsCount = firstService.SnsCampaignDefs.Count;
+            var firstNightPanel = Root(firstScene, "Canvas").transform.Find("Panel_Night");
+            int firstNightChildCount = CountAllDescendants(firstNightPanel);
+            int firstListeners = firstNightPanel.Find("Button_Sns_PhotoFeed").GetComponent<Button>()
+                .onClick.GetPersistentEventCount();
+
+            SceneBuilder.Apply();
+            var secondScene = OpenSingle(SceneBuilder.ShopPath);
+            var secondService = Root(secondScene, "GameManager").GetComponent<ServiceManager>();
+            int secondSnsCount = secondService.SnsCampaignDefs.Count;
+            var secondNightPanel = Root(secondScene, "Canvas").transform.Find("Panel_Night");
+            int secondNightChildCount = CountAllDescendants(secondNightPanel);
+            int secondListeners = secondNightPanel.Find("Button_Sns_PhotoFeed").GetComponent<Button>()
+                .onClick.GetPersistentEventCount();
+
+            Assert.AreEqual(firstSnsCount, secondSnsCount, "재실행해도 SNS catalog 수가 같아야 한다 (멱등)");
+            Assert.AreEqual(firstNightChildCount, secondNightChildCount, "재실행해도 Night 패널 하위 오브젝트 수가 같아야 한다 (멱등)");
+            Assert.AreEqual(0, firstListeners, "SNS 버튼도 persistent listener 없이 런타임 AddListener 만 사용해야 한다");
+            Assert.AreEqual(0, secondListeners, "재실행 후에도 SNS 버튼 persistent listener 는 0 이어야 한다");
+        }
     }
 }

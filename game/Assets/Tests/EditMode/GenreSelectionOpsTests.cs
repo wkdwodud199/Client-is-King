@@ -383,5 +383,176 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsNull(plan);
             Assert.IsNotEmpty(reason);
         }
+
+        // ── task-111 D2: DayModifier overload ───────────────────────────────
+
+        [Test]
+        public void Neutral_Overload_Equals_Legacy_4Input_Overload_Field_By_Field()
+        {
+            bool okLegacy = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), out var legacyPlan, out _);
+            bool okNeutral = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), DayModifier.Neutral(1), out var neutralPlan, out _);
+
+            Assert.IsTrue(okLegacy);
+            Assert.IsTrue(okNeutral);
+            Assert.AreEqual(legacyPlan.GenreId, neutralPlan.GenreId);
+            Assert.AreEqual(legacyPlan.OrderCount, neutralPlan.OrderCount);
+            Assert.AreEqual(legacyPlan.BaseOrderCount, neutralPlan.BaseOrderCount);
+            Assert.AreEqual(0, neutralPlan.BonusOrderCount);
+            Assert.AreEqual("", neutralPlan.SourceCampaignId);
+            Assert.AreEqual(legacyPlan.MinPricePerCustomer, neutralPlan.MinPricePerCustomer);
+            Assert.AreEqual(legacyPlan.MaxPricePerCustomer, neutralPlan.MaxPricePerCustomer);
+            CollectionAssert.AreEqual(legacyPlan.AllowedRecipeIds, neutralPlan.AllowedRecipeIds);
+            CollectionAssert.AreEqual(legacyPlan.TopCustomerIds, neutralPlan.TopCustomerIds);
+            for (int i = 0; i < legacyPlan.CustomerWeights.Count; i++)
+            {
+                Assert.AreEqual(legacyPlan.CustomerWeights[i].CustomerId, neutralPlan.CustomerWeights[i].CustomerId);
+                Assert.AreEqual(legacyPlan.CustomerWeights[i].MilliWeight, neutralPlan.CustomerWeights[i].MilliWeight);
+            }
+            for (int i = 0; i < legacyPlan.OrderCount; i++)
+            {
+                Assert.AreEqual(GenreSelectionOps.PickCustomerId(legacyPlan, i), GenreSelectionOps.PickCustomerId(neutralPlan, i), $"주문 {i}");
+            }
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_Null()
+        {
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), null, out var plan, out var reason);
+            Assert.IsFalse(ok);
+            Assert.IsNull(plan);
+            Assert.IsNotEmpty(reason);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_Day_Mismatch()
+        {
+            var modifier = DayModifier.Neutral(2);
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsFalse(ok);
+            Assert.IsNull(plan);
+            Assert.IsNotEmpty(reason);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_When_Bonus_Out_Of_Range()
+        {
+            var modifier = new DayModifier(1, "x", 3, new List<CustomerWeightBoost>());
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsFalse(ok);
+            Assert.IsNull(plan);
+            Assert.IsNotEmpty(reason);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_Fails_On_Coverage_Violations()
+        {
+            var allFour = new List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1000),
+                new CustomerWeightBoost("office_worker", 1000),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+
+            // 누락 (3종만)
+            var missing = new DayModifier(1, "x", 1, allFour.GetRange(0, 3));
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), missing, out var p1, out _));
+            Assert.IsNull(p1);
+
+            // 중복
+            var duplicated = new List<CustomerWeightBoost>(allFour) { new CustomerWeightBoost("student", 1200) };
+            var dup = new DayModifier(1, "x", 1, duplicated);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), dup, out var p2, out _));
+            Assert.IsNull(p2);
+
+            // 미지 ID
+            var unknown = new List<CustomerWeightBoost>(allFour.GetRange(0, 3)) { new CustomerWeightBoost("ghost", 1000) };
+            var unk = new DayModifier(1, "x", 1, unknown);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), unk, out var p3, out _));
+            Assert.IsNull(p3);
+
+            // BoostMilli <= 0
+            var zeroBoost = new List<CustomerWeightBoost>(allFour.GetRange(0, 3)) { new CustomerWeightBoost("senior_regular", 0) };
+            var zero = new DayModifier(1, "x", 1, zeroBoost);
+            Assert.IsFalse(GenreSelectionOps.TryBuildDemandPlan(GukbapGenre(), 1, SeedRecipes(), SeedCustomers(), zero, out var p4, out _));
+            Assert.IsNull(p4);
+        }
+
+        [Test]
+        public void TryBuildDemandPlan_Modifier_State_Unchanged_On_Failure()
+        {
+            // plan out 은 실패 시 항상 null — 이 계열의 "상태 불변"은 out plan 을 통해서만 관찰 가능하다(입력 DTO 는 그대로).
+            var genre = GukbapGenre();
+            var modifier = new DayModifier(1, "x", 5, new List<CustomerWeightBoost>()); // bonus 5 는 범위 밖
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(genre, 1, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsFalse(ok);
+            Assert.IsNull(plan);
+            Assert.AreEqual(Gukbap, genre.Id, "입력 DTO 불변");
+        }
+
+        [Test]
+        public void BasePrefix_Invariant_Same_Genre_Day_Indices_Identical_With_Or_Without_Modifier()
+        {
+            GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 2, SeedRecipes(), SeedCustomers(), out var neutralPlan, out _);
+
+            var boosts = new List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1600),
+                new CustomerWeightBoost("office_worker", 1300),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+            var modifier = new DayModifier(2, "short_form", 2, boosts);
+            GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 2, SeedRecipes(), SeedCustomers(), modifier, out var snsPlan, out var reason);
+
+            Assert.IsNotNull(snsPlan, reason);
+            Assert.AreEqual(neutralPlan.BaseOrderCount, snsPlan.BaseOrderCount);
+            for (int i = 0; i < neutralPlan.BaseOrderCount; i++)
+            {
+                Assert.AreEqual(GenreSelectionOps.PickCustomerId(neutralPlan, i), GenreSelectionOps.PickCustomerId(snsPlan, i), $"base 인덱스 {i} 고객");
+                Assert.AreEqual(GenreSelectionOps.PickRecipeId(neutralPlan, i), GenreSelectionOps.PickRecipeId(snsPlan, i), $"base 인덱스 {i} recipe");
+                Assert.AreEqual(
+                    GenreSelectionOps.PickPartySize(neutralPlan.Day, i, 1, 3),
+                    GenreSelectionOps.PickPartySize(snsPlan.Day, i, 1, 3),
+                    $"base 인덱스 {i} partySize");
+            }
+        }
+
+        // ── task-111 C5: 고정 검증 벡터 (분식 Day 2 × 숏핑) ──────────────────
+
+        [Test]
+        public void C5_Bunsik_Day2_ShortForm_Bonus_Pool_And_Roll_Match_Fixed_Vector()
+        {
+            var boosts = new List<CustomerWeightBoost>
+            {
+                new CustomerWeightBoost("student", 1600),
+                new CustomerWeightBoost("office_worker", 1300),
+                new CustomerWeightBoost("family_parent", 1000),
+                new CustomerWeightBoost("senior_regular", 1000),
+            };
+            var modifier = new DayModifier(2, "short_form", 2, boosts);
+            bool ok = GenreSelectionOps.TryBuildDemandPlan(BunsikGenre(), 2, SeedRecipes(), SeedCustomers(), modifier, out var plan, out var reason);
+            Assert.IsTrue(ok, reason);
+
+            // bonus 풀 (ID ordinal): family 900 / office 1716 / senior 420 / student 2400, 합 5436
+            var byId = new Dictionary<string, int>();
+            foreach (var row in plan.BonusCustomerWeights)
+            {
+                byId[row.CustomerId] = row.MilliWeight;
+            }
+            Assert.AreEqual(900, byId["family_parent"]);
+            Assert.AreEqual(1716, byId["office_worker"]);
+            Assert.AreEqual(420, byId["senior_regular"]);
+            Assert.AreEqual(2400, byId["student"]);
+
+            Assert.AreEqual(2190636514u, GenreSelectionOps.Fnv1a("gukbap|1|0"), "task-110 벡터 유지");
+            Assert.AreEqual(1202351915u, GenreSelectionOps.Fnv1a("bunsik|2|6"));
+            Assert.AreEqual(1185574296u, GenreSelectionOps.Fnv1a("bunsik|2|7"));
+
+            Assert.AreEqual(6, plan.BaseOrderCount, "분식 base 6건");
+            Assert.AreEqual(8, plan.OrderCount, "총 8주문 (base 6 + bonus 2)");
+            Assert.AreEqual("office_worker", GenreSelectionOps.PickCustomerId(plan, 6), "roll 1127 → office_worker");
+            Assert.AreEqual("student", GenreSelectionOps.PickCustomerId(plan, 7), "roll 4440 → student");
+        }
     }
 }

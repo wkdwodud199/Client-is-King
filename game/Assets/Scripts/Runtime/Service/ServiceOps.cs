@@ -65,9 +65,10 @@ namespace ClientIsKing.Service
         }
 
         /// <summary>
-        /// GenreDemandPlan 기반 결정론적 주문 목록 생성 (design.md D6/G3, task-110).
+        /// GenreDemandPlan 기반 결정론적 주문 목록 생성 (design.md D6/G3, task-110; task-111 D3 SNS 태그).
         /// recipe/customer 는 plan 이 이미 정렬·검증한 ID 목록을 그대로 사용하고,
         /// customer 의 실제 PartySize 범위 조회에만 <paramref name="customers"/> 를 사용한다.
+        /// 인덱스 i가 plan.BaseOrderCount 이상이면(=보너스 주문, base 뒤에 append) snsInflow 태그를 붙인다.
         /// </summary>
         public static List<ServiceOrderState> BuildOrders(GenreDemandPlan plan, IReadOnlyList<CustomerArchetypeDef> customers)
         {
@@ -100,12 +101,13 @@ namespace ClientIsKing.Service
                     recipeId = recipeId,
                     customerId = customerId,
                     partySize = partySize,
+                    snsInflow = i >= plan.BaseOrderCount,
                 });
             }
             return orders;
         }
 
-        /// <summary>해당 day 의 주문 목록과 당일 통계를 초기화한다 (빈 목록도 허용 — 설계 4단계).</summary>
+        /// <summary>해당 day 의 주문 목록과 당일 통계를 초기화한다 (빈 목록도 허용 — 설계 4단계, task-111 D3 SNS 통계 포함).</summary>
         public static void StartServiceDay(GameState state, List<ServiceOrderState> orders, int day)
         {
             Require(state);
@@ -117,6 +119,9 @@ namespace ClientIsKing.Service
             state.serviceOrdersMissedToday = 0;
             state.serviceCustomersServedToday = 0;
             state.serviceCustomersMissedToday = 0;
+            state.serviceSnsOrdersServedToday = 0;
+            state.serviceSnsOrdersMissedToday = 0;
+            state.serviceSnsRevenueToday = 0;
         }
 
         /// <summary>처리되지 않은 다음 주문 (없으면 null).</summary>
@@ -274,13 +279,18 @@ namespace ClientIsKing.Service
             state.serviceOrdersServedToday++;
             state.serviceCustomersServedToday += order.partySize;
             order.served = true;
+            if (order.snsInflow)
+            {
+                state.serviceSnsOrdersServedToday++;
+                state.serviceSnsRevenueToday += price;
+            }
             state.serviceCurrentOrderIndex = FindNextOpenIndex(state, 0);
 
             return new ServiceResult(true,
                 $"{recipe.DisplayName} ×{order.partySize} 서빙 완료 (+{price:N0}원)", price, state.cash);
         }
 
-        /// <summary>현재 주문 포기 — 매출/인벤 불변, 실패 통계만 증가 (설계 10단계).</summary>
+        /// <summary>현재 주문 포기 — 매출/인벤 불변, 실패 통계만 증가 (설계 10단계, task-111 D3 SNS 통계 포함).</summary>
         public static ServiceResult SkipCurrentOrder(GameState state)
         {
             Require(state);
@@ -294,6 +304,10 @@ namespace ClientIsKing.Service
             order.missed = true;
             state.serviceOrdersMissedToday++;
             state.serviceCustomersMissedToday += Math.Max(0, order.partySize);
+            if (order.snsInflow)
+            {
+                state.serviceSnsOrdersMissedToday++;
+            }
             state.serviceCurrentOrderIndex = FindNextOpenIndex(state, 0);
 
             return new ServiceResult(true, $"주문 포기 — 손님 {order.partySize}명 이탈.", 0, state.cash);

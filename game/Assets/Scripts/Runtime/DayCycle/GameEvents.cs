@@ -28,6 +28,15 @@ namespace ClientIsKing.DayCycle
             GenreSelected?.Invoke(genreId);
         }
 
+        /// <summary>SNS 캠페인 집행이 확정될 때 정확히 1회 발행된다 (task-111 E3, campaignId 전달).</summary>
+        public static event Action<string> SNSCampaignExecuted;
+
+        /// <summary>발행은 집행을 확정하는 UI 경로(NightPanelController)만 호출한다 — 도메인 Ops 는 발행하지 않는다.</summary>
+        internal static void RaiseSNSCampaignExecuted(string campaignId)
+        {
+            SNSCampaignExecuted?.Invoke(campaignId);
+        }
+
         // ── 표현 전용 이벤트 (task-108) — 게임 규칙은 이 이벤트에 의존하지 않는다 ──
 
         /// <summary>현재 표시할 주문이 바뀔 때 (없으면 HasOrder=false 로 슬롯 비움 신호).</summary>

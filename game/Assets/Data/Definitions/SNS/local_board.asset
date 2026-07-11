@@ -15,7 +15,7 @@ MonoBehaviour:
   id: local_board
   displayName: "\uB3D9\uB124\uAC8C\uC2DC\uD310"
   channel: 2
-  baseCost: 25000
+  baseCost: 7000
   baseReach: 0.15
   repeatDecay: 0.9
   audienceAffinities:
