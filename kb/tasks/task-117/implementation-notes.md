@@ -4,8 +4,10 @@
 >
 > U1~U5 전부 완료(source-ready). 자동 검증 게이트 전부 통과 — EditMode **510/510**(기준선 494 +
 > 신규 16), PlayMode **10/10**(기준선 9 + 신규 1), `error CS` 0, Shop.unity 실변경 0(재직렬화
-> 노이즈 revert). 미결 게이트: **640×360 시각 승인(오픈 이슈 5)** · **Codex 코드리뷰** ·
-> **THIRD-PARTY-NOTICES.md 신규 법적 문구 오너 확인**(아래 참조) — Claude self-approve 금지.
+> 노이즈 revert). **Codex 코드리뷰 approved**(2026-07-13, reviews/001.md — Action required 없음:
+> 설계 준수·모달 격리·변경 범위·테스트 충분성 승인). 미결 게이트(비코드): **640×360 시각 승인** ·
+> **문구 최종 승인 + THIRD-PARTY-NOTICES.md 신규 법적 문구 오너 확인** · **README(+en) MIT 범위
+> 반영(task-116 커밋) + 116/117 합류 후 재빌드 릴리스 게이트** — Claude self-approve 금지.
 
 ## 오너 확정 사항 반영 (2026-07-13)
 
