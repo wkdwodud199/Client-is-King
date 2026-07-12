@@ -16,6 +16,7 @@
 - **정체성 고정**: 아래 "정체성" 열은 승인 콘셉트에서 온 **고정 사양**이다. 그대로 재현한다.
 - **전달 형식**: **프레임당 개별 PNG 1파일**(스프라이트 시트/스트립 아님 — 슬라이싱 리스크 0). 파일명 정확히 일치.
 - **불투명 고유색 상한**(기계 검증): 손님 ≤24 · 음식 ≤32 · 장르 아이콘 ≤12 · backdrop/counter ≤64.
+- **원본 PNG 진짜 RGBA**(기계 검증): 납품 PNG 는 원본 바이트 기준 **IHDR color type == 6**(truecolor+alpha)이어야 한다 — Unity 변환 Texture2D 만이 아니라 raw PNG 헤더를 확인한다. (RGB 납품 + 키잉 폴백을 택한 파일만 예외로, provenance 에 배경색 기록.)
 
 ## 1) 손님 — 20파일 · 각 32×32 RGBA
 
@@ -25,7 +26,7 @@
 |---|---|
 | `student.png`, `student_walk0..3.png` | 백팩 + 회색 후디 청년 |
 | `office_worker.png`, `office_worker_walk0..3.png` | 브라운 코트 + 토트백 직장인 |
-| `family_parent.png`, `family_parent_walk0..3.png` | 그린 패딩 부모 + 옐로 패딩 아이 — **페어 vs 부모 단독은 32×32 캔버스 안에서 생산자 판단**(캔버스는 32×32 고정) |
+| `family_parent.png`, `family_parent_walk0..3.png` | 그린 패딩 부모 + 옐로 패딩 아이 — **부모+아이 페어 우선**(승인 콘셉트대로). 1× 크기에서 식별 불가할 때만 오너/Codex 재승인 후 부모 단독. 캔버스 32×32 고정 |
 | `senior_regular.png`, `senior_regular_walk0..3.png` | 헌팅캡 + 브라운 재킷 노신사 |
 
 ## 2) 음식 아이콘 — 6파일 · 각 32×32 RGBA
@@ -43,13 +44,13 @@
 
 ## 3) 장르 UI 아이콘 — 4파일 · 각 32×32 RGBA
 
-`ui-icons.png`의 장르 4종. 라벨 매핑은 Codex 확정 사안(추정): 국그릇=국밥·꼬치=분식·면기=면류·도시락=제네럴리스트.
+`ui-icons.png`의 장르 4종. **버튼 프레임 없이 투명 배경 심볼만**(콘셉트의 프레임 미포함 — 프레임은 SceneBuilder UI가 담당). 매핑 **확정**(오너 2026-07-12): 국그릇=gukbap·꼬치=bunsik·면기=noodles·도시락=generalist. **파일명은 실제 도메인 장르 id 사용** — 면류는 `genre_noodles.png`(단수 `noodle` 아님).
 
-| 파일 (UiIcons/) | 정체성(추정 — Codex 확정) |
+| 파일 (UiIcons/) | 정체성 |
 |---|---|
-| `genre_gukbap.png` | 국그릇 |
+| `genre_gukbap.png` | 국그릇(국밥) |
 | `genre_bunsik.png` | 꼬치(분식) |
-| `genre_noodle.png` | 면기(면류) |
+| `genre_noodles.png` | 면기(면류) |
 | `genre_generalist.png` | 도시락(제네럴리스트) |
 
 ## 4) 무대 — 2파일
@@ -61,13 +62,25 @@
 | `backdrop.png` | **640×160** RGBA(불투명 허용) | 야간 벽돌 거리 + 트럭 합성 전경 |
 | `counter.png` | **320×32** RGBA | 트럭 서빙 카운터 띠 |
 
+## 생산 순서 — 파일럿 9파일 먼저 (오너 확정)
+
+전체 32파일을 바로 생산하지 않는다. 아래 **9파일을 파일럿으로 먼저** 생산·검증한다:
+
+- `student.png` + `student_walk0..3.png` (5)
+- `pork_gukbap.png` · `genre_gukbap.png` · `backdrop.png` · `counter.png` (4)
+
+오너/Codex 가 **1× · 4× contact sheet + 걷기 애니메이션 + 좌우 반전**을 승인한 뒤 나머지 23파일을 생산한다.
+**파일럿은 U2 부분 납품이 아니다** — 최종 32파일이 전부 기계 검증을 통과한 뒤에만 U2(수입)를 시작한다.
+
 ## 전달 후 절차
 
-1. Claude가 `NycArtTests`(존재·규격·알파·색상한·임포트 표준·provenance)로 **기계 검증** → 불합격분 반려.
-2. 합격분을 `game/Assets/Art/NYC/`에 수입(+`.meta`) + `NYC-ART-PROVENANCE.md` 작성.
-3. `SceneBuilder` 스프라이트 소스 경로 전환(단일 커밋 — 롤백 지점) + 씬 재생성.
-4. 640×360 시각 승인(오너/Codex) → 반려 시 재생산 요청.
+1. Claude가 `NycArtTests`(존재·규격·**IHDR color type 6**·알파·색상한·임포트 표준·provenance)로 **기계 검증** → 불합격분은 **수정 없이 파일별 반려 사유만 보고**(Claude 아트 수정 금지).
+2. 합격분을 `game/Assets/Art/NYC/`에 수입(+`.meta`) + `NYC-ART-PROVENANCE.md` 작성. **U2 자산 수입 커밋**.
+3. `SceneBuilder` 스프라이트 소스 경로 전환 — **U3 별도 커밋**(롤백 지점) + 씬 재생성.
+4. 640×360 시각 승인(오너/Codex — **Claude self-approve 금지**) → 반려 시 재생산 요청.
 
-## ⚠️ 커밋 전 확정 필요 (오픈 이슈 5 — 오너)
+## AI 아트 공개·라이선스 정책 (오너 확정 2026-07-12)
 
-리포가 **public**이라 스프라이트를 커밋하면 즉시 게시된다. **AI 생성 아트의 공개 표기·크레딧·라이선스 선언 문구**(저작권 지위 불확실성 고지 포함)를 오너가 확정해야 U2(입력 패키지 커밋)를 진행한다.
+리포가 **public**이라 스프라이트를 커밋하면 즉시 게시된다. 정책 **확정**(전체 문구는 design.md C절):
+- 라이선스: 코드 MIT / NYC·art-originals **아트는 MIT 제외·별도 라이선스**. 재사용·재배포·2차 저작물 미허가. **CC0 표기 금지**.
+- U2 커밋 시 함께 생성할 공개문 위치: `README.md`+`README.en.md`(요약+MIT 제외 범위) · `game/Assets/Art/NYC/NYC-ART-PROVENANCE.md`(전체 문구+파일별 생성/후처리/승인) · `game/Assets/StreamingAssets/AI-ART-NOTICE.txt`(빌드 포함 KO/EN). Steam Content Survey=Pre-Generated AI 신고. 인게임 Credits UI=별도 release task(공개 출시 전 필수).

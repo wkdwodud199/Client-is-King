@@ -49,12 +49,13 @@ namespace ClientIsKing.EditorTools
             "gimbap",
         };
 
-        // 장르 id (기존 FoodIcons 재활용 슬롯을 전용 UI 아이콘으로 승격 — D절)
+        // 장르 id (실제 도메인 id — noodles. 기존 FoodIcons 재활용 슬롯을 전용 UI 아이콘으로 승격 — D절.
+        // 오너 정정 2026-07-12: noodle→noodles, Codex design.md 기록 후 통일)
         static readonly string[] GenreIds =
         {
             "gukbap",
             "bunsik",
-            "noodle",
+            "noodles",
             "generalist",
         };
 
