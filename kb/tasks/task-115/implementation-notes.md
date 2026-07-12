@@ -3,8 +3,20 @@
 > Status: done
 >
 > G1(도메인+밸런스)·G2(엔딩 표현+빌드)·G3(통합검증+기록) 전부 완료. 자동 검증 게이트(컴파일·
-> EditMode·PlayMode·BuildWindows) 전부 통과. 오너 플레이테스트·640×360 시각 승인 3종·빌드 exe
-> 스모크·Codex 코드리뷰는 done 게이트 조건으로 별도 대기(미결).
+> EditMode·PlayMode·BuildWindows) 전부 통과. **Codex 코드리뷰 approved**(2026-07-12, reviews/001.md —
+> Action required 없음). 오너 플레이테스트·640×360 시각 승인 3종·빌드 exe 스모크는 done 게이트
+> 조건으로 별도 대기(미결 — Claude self-approve 금지).
+
+## Codex 코드 리뷰 결과 (2026-07-12 · reviews/001.md)
+
+- **판정 approved · Action required 없음.** Codex 확인: `GameState` 무필드추가·`SaveSchemaVersion`
+  1 유지·엔딩 파생(isBankrupt 우선/daysCompleted≥7 클리어)·GameManager 클리어 게이트 대칭 차단·
+  운영비 15,000 동기화·`BalanceEndingGuardTests` 핀·엔딩 오버레이(Canvas 폴링·640×360 모달·최상단
+  sibling)·MainMenu 클리어 분기·`BuildTool` 2씬 검증+실패 예외·`ClientIsKing.exe` 존재+`.gitignore`
+  적용. 리뷰 중 validator/generate-status --check/--check-done 전부 통과 확인. 설계 원안 28,000 →
+  15,000 재확정도 "밴드 절차가 깨진 이유를 재실측으로 설명 + 새 승인값을 테스트에 반영" 근거로 수용.
+- Codex 는 Unity 전체 테스트를 재실행하지 않음(EditMode 486/PlayMode 9 는 Claude 독립 재실행으로 확인).
+- **approved 는 코드/자동검증/문서일관성 승인이지, 오너 수동 게이트 통과나 M3 최종 선언을 대체하지 않는다**(Codex 명시).
 
 ## 설계 수정 (오너 승인 2026-07-12)
 
