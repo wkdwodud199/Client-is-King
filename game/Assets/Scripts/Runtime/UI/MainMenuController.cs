@@ -1,3 +1,4 @@
+using ClientIsKing.DayCycle;
 using ClientIsKing.Managers;
 using TMPro;
 using UnityEngine;
@@ -9,14 +10,16 @@ namespace ClientIsKing.UI
     /// <summary>
     /// MainMenu 씬 — 시작/이어하기 버튼을 GameManager 에 연결하는 얇은 컨트롤러.
     /// task-113 (U3): 이어하기 블록(design.md G1/G2) — HasSaveFile/TryPeekSave 결과만 표시하고
-    /// 재계산하지 않는다. 파일 없음/정상/파산/손상 4분기 전부 문구+색 병용이며, 손상·파산 세이브를
-    /// 조용히 새 게임으로 넘기지 않는다 — 폴백은 항상 열려 있는 `게임 시작`(플레이어 선택)이다.
+    /// 재계산하지 않는다. 파일 없음/정상/파산/손상/클리어(task-115 D3) 5분기 전부 문구+색 병용이며,
+    /// 손상·파산·클리어 세이브를 조용히 새 게임으로 넘기지 않는다 — 폴백은 항상 열려 있는
+    /// `게임 시작`(플레이어 선택)이다.
     /// </summary>
     public sealed class MainMenuController : MonoBehaviour
     {
         // G2 상태 라인 색 (task-110 팔레트 hex 고정) — 상태는 문구가 전달하고 색은 보조다.
         static readonly Color32 SteamCream = new Color32(0xF4, 0xE5, 0xC2, 0xFF);
         static readonly Color32 WarningPlum = new Color32(0xA9, 0x3E, 0x58, 0xFF);
+        static readonly Color32 BrassAmber = new Color32(0xE5, 0xA8, 0x4B, 0xFF); // 클리어 분기 (task-115 D3)
 
         [SerializeField] private Button startButton;
 
@@ -72,7 +75,7 @@ namespace ClientIsKing.UI
             }
         }
 
-        /// <summary>G2 분기 4종 — HasSaveFile/TryPeekSave 결과 표시 전용 (UI 재계산 금지).</summary>
+        /// <summary>G2 분기 4종 + 클리어(task-115 D3) — HasSaveFile/TryPeekSave 결과 표시 전용 (UI 재계산 금지).</summary>
         internal void RefreshSaveUi()
         {
             var gm = GameManager.Instance;
@@ -96,6 +99,13 @@ namespace ClientIsKing.UI
                     // 파산 세이브 — 정직한 기록 + 새 게임 유도 (이어하기 잠금, G2).
                     status = $"지난 게임은 파산으로 끝났습니다 (Day {summary.Day}) — 새 게임을 시작하세요.";
                     color = WarningPlum;
+                }
+                else if (EndingOps.IsCleared(summary.DaysCompleted, summary.IsBankrupt))
+                {
+                    // 클리어 세이브 — 기록 표시 + 새 게임 유도 (이어하기 잠금, task-115 D3).
+                    // 판정은 EndingOps.IsCleared 하나만 쓴다(제2 원천 금지) — 우선순위는 파산 → 클리어 → 정상.
+                    status = $"데모 클리어! (영업 {summary.DaysCompleted}일 달성) — 새 게임을 시작하세요.";
+                    color = BrassAmber;
                 }
                 else
                 {

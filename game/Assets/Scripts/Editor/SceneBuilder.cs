@@ -47,6 +47,7 @@ namespace ClientIsKing.EditorTools
         static readonly Color32 NightBlue = new Color32(0x25, 0x3B, 0x56, 0xFF);
         static readonly Color32 SteamCream = new Color32(0xF4, 0xE5, 0xC2, 0xFF);
         static readonly Color32 GochujangRed = new Color32(0xD3, 0x4A, 0x3A, 0xFF);
+        static readonly Color32 BrassAmber = new Color32(0xE5, 0xA8, 0x4B, 0xFF);
 
         public static void Apply()
         {
@@ -138,6 +139,10 @@ namespace ClientIsKing.EditorTools
             nightPanel.SetActive(false);
             genreModal.Panel.transform.SetAsLastSibling();
             genreModal.Panel.SetActive(true);
+
+            // 엔딩 오버레이 (task-115 D1) — 장르 modal SetAsLastSibling 이후 생성해
+            // 항상 canvas 최상단 sibling(렌더/raycast 최우선)이 되게 한다. 초기 비활성.
+            BuildEndingOverlay(canvasGo);
 
             var hud = canvasGo.AddComponent<PhaseHudController>();
             hud.EditorInit(dayPhaseText, advanceButton, marketPanel, servicePanel, settlementPanel, nightPanel,
@@ -707,7 +712,9 @@ namespace ClientIsKing.EditorTools
                 new Vector2(0f, 78f), new Vector2(440f, 20f));
             var spendText = CreateText(panel.transform, "SpendText", "재료 지출  -0원", 12f,
                 new Vector2(0f, 58f), new Vector2(440f, 18f));
-            var operatingText = CreateText(panel.transform, "OperatingText", "운영비  -12,000원", 12f,
+            // 중립 플레이스홀더 (task-115 B4/FIX B) — 형제(매출 +0원/재료 지출 -0원/순손익 +0원)와 일관,
+            // 런타임은 SettlementPanelController.ApplyNumbers 가 실측값으로 덮어쓴다.
+            var operatingText = CreateText(panel.transform, "OperatingText", "운영비  -0원", 12f,
                 new Vector2(0f, 40f), new Vector2(440f, 18f));
             var netText = CreateText(panel.transform, "NetText", "순손익  +0원", 17f,
                 new Vector2(0f, 16f), new Vector2(440f, 26f));
@@ -777,6 +784,40 @@ namespace ClientIsKing.EditorTools
                 followerText, snsTitleText, photoFeed, shortForm, localBoard, snsInfoText, advanceButton,
                 eventNoticeText);
             return panel;
+        }
+
+        // ── 엔딩 오버레이 (task-115 D1 — 클리어/게임오버 공용, 640×360 픽셀 고정) ──
+        static void BuildEndingOverlay(GameObject canvasGo)
+        {
+            var panel = CreateUIObject("Panel_Ending", canvasGo.transform);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(640f, 360f);
+            var dim = panel.AddComponent<Image>();
+            // Ink Navy alpha ≈0.92 dim — raycastTarget 기본 true 로 하부 UI 클릭을 차단한다 (모달, D1).
+            var dimColor = (Color)InkNavy;
+            dimColor.a = 0.92f;
+            dim.color = dimColor;
+
+            // 문구·상태색은 EndingOverlayController.Render 가 표시 시점에 채운다 (표시 전용 — D2).
+            var title = CreateText(panel.transform, "EndingTitleText", "", 28f,
+                new Vector2(0f, 70f), new Vector2(400f, 40f));
+            title.color = BrassAmber; // 초기값 — 클리어 Brass Amber / 파산 Warning Plum 은 controller 소유
+            var stats = CreateText(panel.transform, "EndingStatsText", "", 12f,
+                new Vector2(0f, 26f), new Vector2(460f, 32f));
+            stats.color = SteamCream;
+            var message = CreateText(panel.transform, "EndingMessageText", "", 11f,
+                new Vector2(0f, -20f), new Vector2(460f, 36f));
+            message.color = SteamCream;
+            var mainMenuButton = CreateButton(panel.transform, "EndingMainMenuButton", "메인 메뉴로 ▶",
+                new Vector2(0f, -72f), new Vector2(200f, 40f));
+
+            panel.SetActive(false); // 초기 비활성 — 표시는 controller 폴링이 결정한다
+
+            // controller 는 Canvas 탑재 (오버레이 GO 비활성에도 Update 폴링 유지 — PhaseHud 전례).
+            var controller = canvasGo.AddComponent<EndingOverlayController>();
+            controller.EditorInit(panel, title, stats, message, mainMenuButton);
         }
 
         /// <summary>SNS 채널 버튼 — Night Blue/Steam Cream 라벨 2행 11pt, 집행 완료 outline 은 controller 가 켠다 (F1/F2).</summary>

@@ -9,8 +9,9 @@ using UnityEngine.UI;
 namespace ClientIsKing.Tests.EditMode
 {
     /// <summary>
-    /// task-113 U5: MainMenuController 의 G2 분기 4종(없음/정상/파산/손상) — HasSaveFile/TryPeekSave
-    /// 결과만 표시하고 재계산하지 않는지, 손상·파산 세이브가 조용히 새 게임으로 넘어가지 않는지 검증한다.
+    /// task-113 U5: MainMenuController 의 G2 분기 4종(없음/정상/파산/손상) + task-115 D3 클리어 분기 —
+    /// HasSaveFile/TryPeekSave 결과만 표시하고 재계산하지 않는지, 손상·파산·클리어 세이브가 조용히
+    /// 새 게임으로 넘어가지 않는지 검증한다.
     /// 모든 파일 I/O 는 GameManager.SaveFilePathOverride(temporaryCachePath 하위)로 격리한다.
     /// </summary>
     public class MainMenuSaveFlowTests
@@ -126,6 +127,62 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsFalse(continueButton.interactable, "파산 세이브는 이어하기를 잠가야 한다");
             StringAssert.Contains("파산으로 끝났습니다", saveStatusText.text);
             StringAssert.Contains("Day 1", saveStatusText.text);
+            AssertColor(saveStatusText, 0xA9, 0x3E, 0x58); // Warning Plum
+        }
+
+        // ── 분기 5: 클리어 세이브 (task-115 D3 — 4→5분기) ───────────────────
+
+        [Test]
+        public void RefreshSaveUi_Shows_Cleared_Branch_And_Locks_Continue()
+        {
+            var (gmGo, controller, continueButton, saveStatusText) = OpenMainMenu();
+            var gm = gmGo.GetComponent<GameManager>();
+            gm.StartNewGame();
+            // 클리어 세이브는 정상 v1 세이브다 (Day N·Settlement·settlementDay==N·daysCompleted==N —
+            // BalanceEndingGuardTests 왕복 fixture 미러, task-115 C4).
+            gm.State.selectedGenreId = "bunsik";
+            gm.State.day = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            gm.State.currentPhase = ClientIsKing.DayCycle.DayPhase.Settlement;
+            gm.State.serviceDay = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            gm.State.settlementDay = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            gm.State.daysCompleted = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            gm.State.cash = 150000;
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            TestSceneSupport.ForceStart(controller);
+
+            Assert.IsFalse(continueButton.interactable, "클리어 세이브는 이어하기를 잠가야 한다 (D3)");
+            Assert.AreEqual("데모 클리어! (영업 7일 달성) — 새 게임을 시작하세요.", saveStatusText.text,
+                "D3 클리어 문구 정확 일치 (Codex 소유 UX copy)");
+            AssertColor(saveStatusText, 0xE5, 0xA8, 0x4B); // Brass Amber
+        }
+
+        [Test]
+        public void RefreshSaveUi_Bankrupt_Takes_Priority_Over_Cleared()
+        {
+            // 분기 우선순위(파산 → 클리어 → 정상, D3) — daysCompleted ≥ N 이면서 파산인 유일한
+            // v1 유효 형태는 "Day 8 파산"(settledToday && bankrupt → daysCompleted == day−1 == 7,
+            // SaveOps V3 규칙)이다. 파산 시 daysCompleted 미갱신이라 같은 날 동시 성립은 표현 불가(C1).
+            var (gmGo, controller, continueButton, saveStatusText) = OpenMainMenu();
+            var gm = gmGo.GetComponent<GameManager>();
+            gm.StartNewGame();
+            int dayAfterClear = ClientIsKing.DayCycle.EndingOps.ClearTargetDays + 1;
+            gm.State.selectedGenreId = "bunsik";
+            gm.State.day = dayAfterClear;
+            gm.State.currentPhase = ClientIsKing.DayCycle.DayPhase.Night;
+            gm.State.serviceDay = dayAfterClear;
+            gm.State.settlementDay = dayAfterClear;
+            gm.State.daysCompleted = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            gm.State.cash = 0;
+            gm.State.isBankrupt = true;
+            gm.State.bankruptcyDay = dayAfterClear;
+            gm.State.bankruptcyReason = "Day 8 운영비 15,000원 미납 (부족액 15,000원)";
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            TestSceneSupport.ForceStart(controller);
+
+            Assert.IsFalse(continueButton.interactable);
+            StringAssert.Contains("파산으로 끝났습니다", saveStatusText.text, "파산이 클리어보다 우선한다");
             AssertColor(saveStatusText, 0xA9, 0x3E, 0x58); // Warning Plum
         }
 

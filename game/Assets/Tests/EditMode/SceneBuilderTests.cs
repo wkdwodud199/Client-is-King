@@ -208,8 +208,10 @@ namespace ClientIsKing.Tests.EditMode
 
             var modal = canvasGo.transform.Find("Panel_GenreSelection");
             Assert.IsNotNull(modal, "Panel_GenreSelection 누락");
-            Assert.AreEqual(canvasGo.transform.childCount - 1, modal.GetSiblingIndex(),
-                "장르 modal 은 canvas 의 마지막 자식이어야 한다 (렌더/raycast 최상단, design.md E3)");
+            // task-115 D1: 엔딩 오버레이(Panel_Ending, 초기 비활성)가 항상 최상단 sibling 으로
+            // 그 위에 얹힌다 — modal 은 "엔딩 오버레이를 제외한 최상단"(마지막 - 1)을 유지한다.
+            Assert.AreEqual(canvasGo.transform.childCount - 2, modal.GetSiblingIndex(),
+                "장르 modal 은 엔딩 오버레이 바로 아래(마지막 - 1) 자식이어야 한다 (design.md E3 + task-115 D1)");
             Assert.IsTrue(modal.gameObject.activeSelf, "미선택 상태에서는 modal 이 초기부터 노출되어야 한다");
 
             var genreBadge = canvasGo.transform.Find("GenreBadge");
@@ -370,6 +372,58 @@ namespace ClientIsKing.Tests.EditMode
                 Assert.AreEqual(32f, rt.sizeDelta.x, 0.01f, $"{buttonName}/Icon 32×32 (×1 정수배)");
                 Assert.AreEqual(32f, rt.sizeDelta.y, 0.01f, $"{buttonName}/Icon 32×32");
             }
+        }
+
+        // ── task-115 U4: 엔딩 오버레이 (D1) — 존재·초기 비활성·최상단 sibling + 멱등 ──
+
+        [Test]
+        public void Shop_Has_Ending_Overlay_Objects_Inactive_As_Last_Sibling()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+
+            var overlay = canvasGo.transform.Find("Panel_Ending");
+            Assert.IsNotNull(overlay, "Panel_Ending 누락");
+            Assert.IsFalse(overlay.gameObject.activeSelf, "엔딩 오버레이는 초기 비활성이어야 한다 (D1)");
+            Assert.AreEqual(canvasGo.transform.childCount - 1, overlay.GetSiblingIndex(),
+                "엔딩 오버레이는 canvas 마지막 자식(장르 modal 위 최상단)이어야 한다 (D1)");
+            Assert.IsNotNull(canvasGo.GetComponent<EndingOverlayController>(),
+                "EndingOverlayController 는 Canvas 탑재여야 한다 (D2)");
+
+            foreach (var name in new[]
+                { "EndingTitleText", "EndingStatsText", "EndingMessageText", "EndingMainMenuButton" })
+            {
+                Assert.IsNotNull(overlay.Find(name), $"Panel_Ending/{name} 누락");
+            }
+        }
+
+        [Test]
+        public void Repeated_Apply_Is_Idempotent_For_Ending_Overlay()
+        {
+            SceneBuilder.Apply();
+            var firstScene = OpenSingle(SceneBuilder.ShopPath);
+            var firstCanvas = Root(firstScene, "Canvas");
+            var firstOverlay = firstCanvas.transform.Find("Panel_Ending");
+            int firstOverlayChildCount = CountAllDescendants(firstOverlay);
+            int firstControllerCount = firstCanvas.GetComponents<EndingOverlayController>().Length;
+            int firstListeners = firstOverlay.Find("EndingMainMenuButton").GetComponent<Button>()
+                .onClick.GetPersistentEventCount();
+
+            SceneBuilder.Apply();
+            var secondScene = OpenSingle(SceneBuilder.ShopPath);
+            var secondCanvas = Root(secondScene, "Canvas");
+            var secondOverlay = secondCanvas.transform.Find("Panel_Ending");
+            int secondOverlayChildCount = CountAllDescendants(secondOverlay);
+            int secondControllerCount = secondCanvas.GetComponents<EndingOverlayController>().Length;
+            int secondListeners = secondOverlay.Find("EndingMainMenuButton").GetComponent<Button>()
+                .onClick.GetPersistentEventCount();
+
+            Assert.AreEqual(firstOverlayChildCount, secondOverlayChildCount,
+                "재실행해도 엔딩 오버레이 하위 오브젝트 수가 같아야 한다 (멱등)");
+            Assert.AreEqual(1, firstControllerCount, "EndingOverlayController 는 Canvas 에 정확히 1개");
+            Assert.AreEqual(1, secondControllerCount, "재실행 후에도 EndingOverlayController 는 1개 (중복 탑재 없음)");
+            Assert.AreEqual(0, firstListeners, "엔딩 버튼은 persistent listener 없이 런타임 AddListener 만 사용해야 한다");
+            Assert.AreEqual(0, secondListeners, "재실행 후에도 엔딩 버튼 persistent listener 는 0 이어야 한다");
         }
 
         // ── task-112 U7: 이벤트 catalog 4종 양씬 동일 주입 + 오브젝트 멱등 ───
