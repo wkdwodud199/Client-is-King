@@ -499,7 +499,10 @@ namespace ClientIsKing.Managers
             GameEvents.RaiseSaveStateChanged();
         }
 
-        /// <summary>저장 파일을 dry-run 으로 읽어 요약을 만든다 — 성공/실패 관계없이 상태를 원상복구한다.</summary>
+        /// <summary>
+        /// 저장 파일을 dry-run 으로 읽어 요약을 만든다 — TryLoadGame 과 동일하게 V11(주문 identity)
+        /// 까지 포함한 검증을 거치며, 성공/실패 관계없이 상태를 원상복구한다(관찰 가능한 부작용 0).
+        /// </summary>
         public bool TryPeekSave(out SaveSummary summary, out string failReason)
         {
             summary = null;
@@ -511,6 +514,10 @@ namespace ClientIsKing.Managers
             machine = prevMachine;
 
             if (!ok)
+            {
+                return false;
+            }
+            if (!TryValidateOrderIdentity(loaded, out failReason))
             {
                 return false;
             }
@@ -537,7 +544,7 @@ namespace ClientIsKing.Managers
             state = loaded;
             machine = new DayPhaseMachine(state);
 
-            if (!TryValidateOrderIdentity(out failReason))
+            if (!TryValidateOrderIdentity(state, out failReason))
             {
                 state = prevState;
                 machine = prevMachine;
@@ -578,15 +585,17 @@ namespace ClientIsKing.Managers
         /// 오늘 주문을 보유(serviceDay==day)하면 TryBuildDayPlan + ServiceOps.BuildOrders(plan, customerDefs)
         /// 재생성 결과와 인덱스별 recipeId/customerId/partySize/snsInflow/eventInflow 를 비교한다.
         /// served/missed/serviceCurrentOrderIndex 는 저장값을 존중 — 비교 대상이 아니다.
+        /// TryLoadGame(설치된 state) 과 TryPeekSave(dry-run loaded state) 양쪽에서 호출하므로 검증 대상
+        /// 상태를 매개변수 <paramref name="s"/> 로 받는다 — this.state 를 직접 참조하지 않는다.
         /// </summary>
-        bool TryValidateOrderIdentity(out string failReason)
+        bool TryValidateOrderIdentity(GameState s, out string failReason)
         {
             failReason = "";
-            if (state.isBankrupt || string.IsNullOrEmpty(state.selectedGenreId))
+            if (s.isBankrupt || string.IsNullOrEmpty(s.selectedGenreId))
             {
                 return true;
             }
-            if (!TryGetGenre(state.selectedGenreId, out var genre))
+            if (!TryGetGenre(s.selectedGenreId, out var genre))
             {
                 failReason = "저장 상태로 수요 계획을 재구성할 수 없습니다: 알 수 없는 전문 분야입니다.";
                 return false;
@@ -602,13 +611,13 @@ namespace ClientIsKing.Managers
                 failReason = $"저장 상태로 수요 계획을 재구성할 수 없습니다: {reason}";
                 return false;
             }
-            if (state.serviceDay != state.day)
+            if (s.serviceDay != s.day)
             {
                 return true; // 오늘 주문을 보유하지 않음 — 재생성 비교 대상 아님
             }
 
             var rebuilt = ServiceOps.BuildOrders(plan, service.CustomerDefs);
-            var saved = state.serviceOrders;
+            var saved = s.serviceOrders;
             if (rebuilt.Count != saved.Count)
             {
                 failReason = "저장된 주문이 수요 계획과 일치하지 않습니다 (주문 개수).";

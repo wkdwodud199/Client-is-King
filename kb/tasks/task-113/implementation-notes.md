@@ -154,13 +154,22 @@
 
 ## Codex 대기 게이트 (self-approve 하지 않음)
 
-- **Codex 코드 리뷰**: `design-review-codex.md`(request-changes) 3건 Action(V11 주문 identity 강화·
-  V1~V10 non-null 완전성·B1 schemaVersion 정책 RT2 일관화)은 design.md 확정판에 이미 반영되어
-  있었고, 이 구현은 그 확정판을 그대로 따랐다(U1~U6 전 구간에서 Action 3건 모두 코드/테스트로
-  재확인). 이 구현 자체(U1~U6 diff)에 대한 Codex 코드 리뷰는 **보류** — `codex-review.sh task-113`을
-  3회(560s/595s/600s) 시도했으나 U1~U6 diff가 커서 codex 분석+작성이 tool 600초 한도를 초과해 리뷰
-  파일 미생성(크래시 아님, apply patch 직전 타임아웃). 설계 리뷰 3건은 이미 반영·구현 준수, 독립
-  검증 EditMode 428/PlayMode 8 통과 상태. 재시도 또는 수동 diff 검토 가능(오너 판단).
+- **Codex 코드 리뷰 (2026-07-12 재시도 성공 → 실질 결함 수정 완료)**: 당초 3회(560s/595s/600s)
+  타임아웃으로 보류했으나(U1~U6 diff가 커서), 2026-07-12 재시도가 성공(reviews/001.md). Codex 가
+  **실제 P1 버그**를 발견: `GameManager.TryPeekSave` 가 V11(주문 identity) 검증을 생략해, 주문 개수만
+  맞고 recipeId/customerId/partySize/snsInflow/eventInflow 가 변조된 세이브가 MainMenu 이어하기에
+  "정상"으로 표시(버튼 활성)됐다가 클릭 시에만 실패 → "손상=잠금+사유" 계약 위반. P2: V11 변조
+  테스트가 5필드 중 recipeId/partySize 만 커버.
+  - **수정 (커밋 예정)**: `TryValidateOrderIdentity(out)` → `(GameState s, out)` 파라미터화해
+    `TryPeekSave`(dry-run loaded)·`TryLoadGame`(설치 state) 양쪽에서 호출(V11 비교 로직 불변).
+    테스트 +5: customerId/snsInflow/eventInflow 변조 롤백 + `TryPeekSave` V11 잠금 회귀 + MainMenu
+    V11-손상 분기. 회귀 테스트가 실제로 버그를 잡음을 확인(수정 임시 제거 시 2/2 FAIL).
+  - 부수 발견·수정: task-115 D3 클리어 픽스처(`RefreshSaveUi_Shows_Cleared_Branch...`)가 serviceDay==day
+    인데 serviceOrders 미충전인 불가능 상태를 손으로 세팅했고, peek 의 V11 생략 버그가 이를 가려주고
+    있었다 → 실제 게임 흐름(장르선택→Service 진입→주문 처리→Settlement)으로 픽스처 재구성.
+  - 독립 재검증: **EditMode 491/491 · PlayMode 9/9**(기준선은 task-115 시점 486→491, +5 신규).
+    설계 리뷰 3건(V11 강화·V1~V10 non-null·schemaVersion 정책)은 원래대로 반영 유지. 재리뷰로 approved
+    확인 예정(reviews/002.md).
 - **640×360 원본 캡처 시각 승인**: MainMenu 이어하기 블록(ContinueButton/SaveStatusText)·Night
   저장 표시 라인이 겹침·이탈 없이 좌표·폰트·카피와 일치하는지 — 자동 테스트는 오브젝트 존재/좌표값/
   worst-case 폭까지 확인했지만 실제 렌더 결과의 시각적 검토는 하지 않았다. **대기**.

@@ -163,6 +163,93 @@ namespace ClientIsKing.Tests.EditMode
         }
 
         [Test]
+        public void TryLoadGame_Rolls_Back_When_Order_CustomerId_Tampered()
+        {
+            var gm = AdvanceToServiceWithOrders();
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            var otherCustomerId = FindDifferentCustomerId(gm.State.serviceOrders[0].customerId);
+            string tampered = json.Replace(
+                $"\"customerId\": \"{gm.State.serviceOrders[0].customerId}\"",
+                $"\"customerId\": \"{otherCustomerId}\"");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            var stateBefore = gm.State;
+            bool ok = gm.TryLoadGame(out var reason);
+            Assert.IsFalse(ok, "customerId 변조는 V11 에서 명시적으로 실패해야 한다");
+            StringAssert.Contains("저장된 주문이 수요 계획과 일치하지 않습니다", reason);
+            Assert.AreSame(stateBefore, gm.State, "V11 실패는 이전 상태로 롤백해야 한다");
+        }
+
+        [Test]
+        public void TryLoadGame_Rolls_Back_When_Order_SnsInflow_Tampered()
+        {
+            var gm = AdvanceToServiceWithOrders();
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            bool originalSnsInflow = gm.State.serviceOrders[0].snsInflow;
+            string tampered = json.Replace(
+                $"\"snsInflow\": {(originalSnsInflow ? "true" : "false")}",
+                $"\"snsInflow\": {(originalSnsInflow ? "false" : "true")}");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            var stateBefore = gm.State;
+            bool ok = gm.TryLoadGame(out var reason);
+            Assert.IsFalse(ok, "snsInflow 변조는 V11 에서 명시적으로 실패해야 한다");
+            StringAssert.Contains("저장된 주문이 수요 계획과 일치하지 않습니다", reason);
+            Assert.AreSame(stateBefore, gm.State, "V11 실패는 이전 상태로 롤백해야 한다");
+        }
+
+        [Test]
+        public void TryLoadGame_Rolls_Back_When_Order_EventInflow_Tampered()
+        {
+            var gm = AdvanceToServiceWithOrders();
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            bool originalEventInflow = gm.State.serviceOrders[0].eventInflow;
+            string tampered = json.Replace(
+                $"\"eventInflow\": {(originalEventInflow ? "true" : "false")}",
+                $"\"eventInflow\": {(originalEventInflow ? "false" : "true")}");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            var stateBefore = gm.State;
+            bool ok = gm.TryLoadGame(out var reason);
+            Assert.IsFalse(ok, "eventInflow 변조는 V11 에서 명시적으로 실패해야 한다");
+            StringAssert.Contains("저장된 주문이 수요 계획과 일치하지 않습니다", reason);
+            Assert.AreSame(stateBefore, gm.State, "V11 실패는 이전 상태로 롤백해야 한다");
+        }
+
+        [Test]
+        public void TryPeekSave_Fails_And_Leaves_State_Unchanged_When_Order_Identity_Tampered()
+        {
+            // 회귀 방지 — Codex 코드리뷰 P1: TryPeekSave 가 V11 을 생략하면 주문 개수만 맞는
+            // 변조 세이브가 MainMenu 에서 "정상"으로 표시되어 이어하기가 활성화되는 버그가 있었다.
+            var gm = AdvanceToServiceWithOrders();
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            var otherRecipeId = FindDifferentRecipeId(gm.State.serviceOrders[0].recipeId);
+            string tampered = json.Replace(
+                $"\"recipeId\": \"{gm.State.serviceOrders[0].recipeId}\"",
+                $"\"recipeId\": \"{otherRecipeId}\"");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            var stateBefore = gm.State;
+            bool ok = gm.TryPeekSave(out var summary, out var reason);
+            Assert.IsFalse(ok, "V11 변조 파일은 peek 도 실패해야 한다(MainMenu 이어하기 잠금 전제)");
+            Assert.IsNull(summary);
+            StringAssert.Contains("저장된 주문이 수요 계획과 일치하지 않습니다", reason);
+            Assert.AreSame(stateBefore, gm.State, "peek 실패도 state 참조를 원상복구해야 한다");
+        }
+
+        [Test]
         public void TryLoadGame_Rolls_Back_When_No_Recipe_Matches_Selected_Genre()
         {
             // 장르 자체는 GenreCatalog(V5 검증 대상)에 그대로 남아 있어야 V11(plan 재구성)만 격리해서
@@ -262,6 +349,20 @@ namespace ClientIsKing.Tests.EditMode
                 }
             }
             Assert.Fail("픽스처 전제: 최소 2종의 레시피가 있어야 한다");
+            return null;
+        }
+
+        static string FindDifferentCustomerId(string currentId)
+        {
+            var service = ServiceManager.Instance;
+            foreach (var customer in service.CustomerDefs)
+            {
+                if (customer != null && customer.Id != currentId)
+                {
+                    return customer.Id;
+                }
+            }
+            Assert.Fail("픽스처 전제: 최소 2종의 고객 archetype 이 있어야 한다");
             return null;
         }
     }

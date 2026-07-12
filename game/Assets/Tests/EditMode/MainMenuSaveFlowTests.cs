@@ -139,11 +139,24 @@ namespace ClientIsKing.Tests.EditMode
             var gm = gmGo.GetComponent<GameManager>();
             gm.StartNewGame();
             // 클리어 세이브는 정상 v1 세이브다 (Day N·Settlement·settlementDay==N·daysCompleted==N —
-            // BalanceEndingGuardTests 왕복 fixture 미러, task-115 C4).
-            gm.State.selectedGenreId = "bunsik";
+            // BalanceEndingGuardTests 왕복 fixture 미러, task-115 C4). 장르 선택은 Day 1 에만 허용되므로
+            // 먼저 Day 1 에서 선택한 뒤 day 를 7로 맞추고(TryBuildDayPlan 이 state.day 를 시드로 쓴다)
+            // Service phase 로 진입해 오늘(7일차) 주문을 생성·전부 처리(served/missed)해야 serviceDay==day
+            // 로 V11(주문 identity, task-113)이 재생성과 실제로 일치하고, Settlement 저장 시 V7(미처리
+            // 주문 잔존 금지)도 통과한다.
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "bunsik", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
             gm.State.day = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(ClientIsKing.DayCycle.EndingOps.ClearTargetDays, gm.State.serviceDay,
+                "픽스처 전제: day 를 미리 맞춘 뒤 진입해야 serviceDay==day 로 V11 비교 대상이 된다");
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+            while (gm.State.serviceOrders.Any(o => o.IsOpen))
+            {
+                service.SkipCurrentOrder();
+            }
             gm.State.currentPhase = ClientIsKing.DayCycle.DayPhase.Settlement;
-            gm.State.serviceDay = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
             gm.State.settlementDay = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
             gm.State.daysCompleted = ClientIsKing.DayCycle.EndingOps.ClearTargetDays;
             gm.State.cash = 150000;
@@ -204,6 +217,49 @@ namespace ClientIsKing.Tests.EditMode
             AssertColor(saveStatusText, 0xA9, 0x3E, 0x58); // Warning Plum
             Assert.AreSame(stateBefore, gm.State, "손상 표시는 조용한 새 게임 진행 없이 현재 state 를 그대로 유지해야 한다");
             Assert.IsTrue(File.Exists(GameManager.SaveFilePathOverride), "손상 파일은 보존된다 (새 런 저장이 대체)");
+        }
+
+        [Test]
+        public void RefreshSaveUi_Shows_Corrupt_Branch_When_Order_Identity_Tampered()
+        {
+            // 회귀 방지 — Codex 코드리뷰 P1: TryPeekSave 가 V11(주문 identity)을 생략하면 주문 개수만
+            // 맞는 변조 세이브가 "정상"으로 표시되어 이어하기가 활성화되는 버그가 있었다.
+            var (gmGo, controller, continueButton, saveStatusText) = OpenMainMenu();
+            var gm = gmGo.GetComponent<GameManager>();
+            gm.StartNewGame();
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "generalist", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            Assert.Greater(gm.State.serviceOrders.Count, 0, "픽스처 전제: 최소 1건의 주문이 있어야 한다");
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+            string otherRecipeId = null;
+            foreach (var recipe in service.RecipeDefs)
+            {
+                if (recipe != null && recipe.Id != gm.State.serviceOrders[0].recipeId)
+                {
+                    otherRecipeId = recipe.Id;
+                    break;
+                }
+            }
+            Assert.IsNotNull(otherRecipeId, "픽스처 전제: 최소 2종의 레시피가 있어야 한다");
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            string tampered = json.Replace(
+                $"\"recipeId\": \"{gm.State.serviceOrders[0].recipeId}\"",
+                $"\"recipeId\": \"{otherRecipeId}\"");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            var stateBefore = gm.State;
+            TestSceneSupport.ForceStart(controller);
+
+            Assert.IsFalse(continueButton.interactable, "V11 변조 세이브는 이어하기를 잠가야 한다");
+            StringAssert.Contains("저장 데이터를 불러올 수 없습니다", saveStatusText.text);
+            AssertColor(saveStatusText, 0xA9, 0x3E, 0x58); // Warning Plum
+            Assert.AreSame(stateBefore, gm.State, "손상 표시는 조용한 새 게임 진행 없이 현재 state 를 그대로 유지해야 한다");
         }
 
         // ── 클릭 흐름 ────────────────────────────────────────────────────────
