@@ -114,6 +114,18 @@
   Library/Temp/Obj/Logs 오염 없음 · 도메인(GameState/Ops/매니저/UI 컨트롤러/저장) 소스·테스트 diff 0.
 - Build Settings 2씬(MainMenu→Shop) 하드캡 불변 — 기존 테스트 통과로 확인.
 
+## Codex 코드 리뷰 결과 (2026-07-12 · reviews/001.md)
+
+- **판정 `request-changes` — 단, "현재 코드 변경 요구는 없음"** (Codex 명시). request-changes 사유는
+  순수하게 설계 D3 done 게이트(640×360 시각 승인 + 수동 Play smoke)가 미제출 상태이기 때문 —
+  코드 결함 아님. Codex 는 구현이 설계 B1/C/E 절과 정합함을 확인(PaletteMaps 단일 원천·exact-match/
+  alpha 보존 스왑·gimbap 정수 확대·32×32 캔버스·tteokbokki 역할 재배정 F-2 범위·SceneBuilder rect·
+  테스트 보강)하고, `--check-done`·`generate-status --check`·PNG 앵커 점검 통과를 기록했다.
+- Codex 는 Unity 배치 테스트를 재실행하지 않았음(커밋/노트 증거 대조만) — EditMode 439/PlayMode 8 은
+  Claude 가 독립 재실행으로 확인(위 표). 시각 게이트에서 팔레트 보정이 나오면 상수·provenance·테스트
+  동기 갱신 조건은 그대로.
+- 결론: **코드는 검증 완료**, 남은 것은 오너 주관 게이트뿐. task-115 순차 진행에 차단 아님.
+
 ## 미결 게이트 (오너/Codex — Claude self-approve 금지)
 
 - **D3 640×360 시각 승인 대기**: 원본+2× 캡처 4종(장르 modal/서빙 팝/Night/무대 전경)의 음식 6종
