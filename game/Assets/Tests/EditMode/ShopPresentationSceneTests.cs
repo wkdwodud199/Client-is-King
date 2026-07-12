@@ -118,7 +118,45 @@ namespace ClientIsKing.Tests.EditMode
             var overlay = canvas.Find("NightOverlay").GetComponent<Image>();
             Assert.IsNotNull(overlay);
             Assert.AreEqual(0f, overlay.color.a, 0.001f, "초기 alpha 0");
+            // task-114 (B4): Ink Navy #16202A — navy 야경 페이드 (F2 삼각 대비).
+            Assert.AreEqual(0x16 / 255f, overlay.color.r, 0.002f, "NightOverlay R = 0x16 (Ink Navy)");
+            Assert.AreEqual(0x20 / 255f, overlay.color.g, 0.002f, "NightOverlay G = 0x20 (Ink Navy)");
+            Assert.AreEqual(0x2A / 255f, overlay.color.b, 0.002f, "NightOverlay B = 0x2A (Ink Navy)");
             Assert.IsFalse(overlay.raycastTarget, "오버레이는 클릭을 막지 않는다 (설계 153행)");
+        }
+
+        // ── task-114: 정수배 rect 정합 (design.md C절 — 좌표·크기 픽셀 고정) ──
+
+        [Test]
+        public void Stage_Rects_Follow_Integer_Scale_Contract()
+        {
+            var foodRt = (RectTransform)stage.Find("FoodIcon");
+            Assert.AreEqual(-40f, foodRt.anchoredPosition.x, 0.01f, "FoodIcon x 불변");
+            Assert.AreEqual(78f, foodRt.anchoredPosition.y, 0.01f, "FoodIcon y 불변");
+            Assert.AreEqual(64f, foodRt.sizeDelta.x, 0.01f, "FoodIcon 64×64 (32×32 캔버스 ×2 — task-114)");
+            Assert.AreEqual(64f, foodRt.sizeDelta.y, 0.01f, "FoodIcon 64×64");
+
+            var cashRt = (RectTransform)stage.Find("CashPopupText");
+            Assert.AreEqual(-40f, cashRt.anchoredPosition.x, 0.01f, "CashPopupText x 불변");
+            Assert.AreEqual(120f, cashRt.anchoredPosition.y, 0.01f, "CashPopupText (-40,120) — 64×64 팝 겹침 회피");
+            Assert.AreEqual(180f, cashRt.sizeDelta.x, 0.01f, "CashPopupText 크기 불변");
+            Assert.AreEqual(22f, cashRt.sizeDelta.y, 0.01f, "CashPopupText 크기 불변");
+
+            var customerRt = (RectTransform)stage.Find("CustomerSprite");
+            Assert.AreEqual(64f, customerRt.sizeDelta.x, 0.01f, "CustomerSprite 64×64 불변 (16×16 ×4)");
+            Assert.AreEqual(64f, customerRt.sizeDelta.y, 0.01f, "CustomerSprite 64×64 불변");
+
+            var propXs = new (string name, float x)[]
+                { ("Prop_BowlLeft", 140f), ("Prop_BowlMid", 178f), ("Prop_BowlRight", 216f) };
+            foreach (var (name, x) in propXs)
+            {
+                var propRt = (RectTransform)stage.Find(name);
+                Assert.IsNotNull(propRt, $"{name} 누락");
+                Assert.AreEqual(x, propRt.anchoredPosition.x, 0.01f, $"{name} x 불변");
+                Assert.AreEqual(70f, propRt.anchoredPosition.y, 0.01f, $"{name} y 불변");
+                Assert.AreEqual(32f, propRt.sizeDelta.x, 0.01f, $"{name} 32×32 (×1 정수배 — task-114)");
+                Assert.AreEqual(32f, propRt.sizeDelta.y, 0.01f, $"{name} 32×32");
+            }
         }
 
         [Test]

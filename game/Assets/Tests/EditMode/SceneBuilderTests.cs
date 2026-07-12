@@ -350,6 +350,28 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, secondListeners, "재실행 후에도 SNS 버튼 persistent listener 는 0 이어야 한다");
         }
 
+        // ── task-114: 장르 버튼 Icon 정수배 rect (design.md C절) ─────────────
+
+        [Test]
+        public void Genre_Buttons_Have_Integer_Scale_Icons()
+        {
+            var scene = OpenSingle(SceneBuilder.ShopPath);
+            var canvasGo = Root(scene, "Canvas");
+            var modal = canvasGo.transform.Find("Panel_GenreSelection");
+            Assert.IsNotNull(modal, "Panel_GenreSelection 누락");
+
+            foreach (var buttonName in new[] { "Button_Gukbap", "Button_Bunsik", "Button_Noodles", "Button_Generalist" })
+            {
+                var icon = modal.Find(buttonName)?.Find("Icon");
+                Assert.IsNotNull(icon, $"{buttonName}/Icon 누락");
+                var rt = (RectTransform)icon;
+                Assert.AreEqual(-38f, rt.anchoredPosition.x, 0.01f, $"{buttonName}/Icon x = -38 (task-114 C절)");
+                Assert.AreEqual(0f, rt.anchoredPosition.y, 0.01f, $"{buttonName}/Icon y = 0");
+                Assert.AreEqual(32f, rt.sizeDelta.x, 0.01f, $"{buttonName}/Icon 32×32 (×1 정수배)");
+                Assert.AreEqual(32f, rt.sizeDelta.y, 0.01f, $"{buttonName}/Icon 32×32");
+            }
+        }
+
         // ── task-112 U7: 이벤트 catalog 4종 양씬 동일 주입 + 오브젝트 멱등 ───
 
         [Test]

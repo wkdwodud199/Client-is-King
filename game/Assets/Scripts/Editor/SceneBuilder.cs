@@ -314,14 +314,15 @@ namespace ClientIsKing.EditorTools
             var foodRt = (RectTransform)foodGo.transform;
             foodRt.anchorMin = foodRt.anchorMax = new Vector2(0.5f, 0.5f);
             foodRt.anchoredPosition = new Vector2(-40f, 78f);
-            foodRt.sizeDelta = new Vector2(40f, 32f); // 20×16 스프라이트 ×2
+            foodRt.sizeDelta = new Vector2(64f, 64f); // 32×32 캔버스 ×2 정수배 (task-114 — art-direction 결정 2)
             var foodImage = foodGo.AddComponent<Image>();
             foodImage.raycastTarget = false;
             foodImage.preserveAspect = true;
             foodGo.SetActive(false);
 
+            // task-114: 64×64 음식 팝과의 겹침 회피 — (-40,96)→(-40,120). 상단 GenreBadge 와 4px 이격 유지.
             var cashPopup = CreateText(stage.transform, "CashPopupText", "", 15f,
-                new Vector2(-40f, 96f), new Vector2(180f, 22f));
+                new Vector2(-40f, 120f), new Vector2(180f, 22f));
             var pulse = CreateText(stage.transform, "SettlementPulseText", "", 19f,
                 new Vector2(150f, 104f), new Vector2(280f, 28f));
 
@@ -333,7 +334,10 @@ namespace ClientIsKing.EditorTools
             overlayRt.offsetMin = Vector2.zero;
             overlayRt.offsetMax = Vector2.zero;
             var overlayImage = overlayGo.AddComponent<Image>();
-            overlayImage.color = new Color(0f, 0f, 0.04f, 0f);
+            // task-114 (B4): Ink Navy 야경 — 초기 alpha 0, 페이드 0.55 는 ShopPresentationController 계약 불변.
+            var overlayColor = (Color)InkNavy;
+            overlayColor.a = 0f;
+            overlayImage.color = overlayColor;
             overlayImage.raycastTarget = false;
 
             var controller = stage.AddComponent<ShopPresentationController>();
@@ -370,11 +374,12 @@ namespace ClientIsKing.EditorTools
         /// <summary>순수 장식 소품 — 카운터 위 음식 그릇 장식 (좌석/동선/충돌/상호작용 없음, task-109 주차장 가드).</summary>
         static void BuildStageProps(Transform stage)
         {
+            // task-114: 32×32 캔버스 ×1 정수배 (기존 26×26 의 0.87× 축소 왜곡 제거).
             var props = new (string name, string spritePath, Vector2 pos, Vector2 size)[]
             {
-                ("Prop_BowlLeft",  $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png",  new Vector2(140f, 70f), new Vector2(26f, 26f)),
-                ("Prop_BowlMid",   $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png", new Vector2(178f, 70f), new Vector2(26f, 26f)),
-                ("Prop_BowlRight", $"{PlaceholderArtBuilder.FoodIconsDir}/bibim_guksu.png",  new Vector2(216f, 70f), new Vector2(26f, 26f)),
+                ("Prop_BowlLeft",  $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png",  new Vector2(140f, 70f), new Vector2(32f, 32f)),
+                ("Prop_BowlMid",   $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png", new Vector2(178f, 70f), new Vector2(32f, 32f)),
+                ("Prop_BowlRight", $"{PlaceholderArtBuilder.FoodIconsDir}/bibim_guksu.png",  new Vector2(216f, 70f), new Vector2(32f, 32f)),
             };
             foreach (var (name, spritePath, pos, size) in props)
             {
@@ -531,11 +536,12 @@ namespace ClientIsKing.EditorTools
             outline.enabled = false;
 
             // 선택 아이콘 — 기본 비활성 (색만으로 상태 전달 금지, E5).
+            // task-114: 32×32 ×1 정수배 (기존 20×20 의 0.67× 축소 왜곡 제거) — 110×32 버튼 내 x∈[-54,-22] 수용.
             var iconGo = CreateUIObject("Icon", button.transform);
             var iconRt = (RectTransform)iconGo.transform;
             iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
-            iconRt.anchoredPosition = new Vector2(-42f, 0f);
-            iconRt.sizeDelta = new Vector2(20f, 20f);
+            iconRt.anchoredPosition = new Vector2(-38f, 0f);
+            iconRt.sizeDelta = new Vector2(32f, 32f);
             var iconImage = iconGo.AddComponent<Image>();
             iconImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(iconPath);
             iconImage.preserveAspect = true;

@@ -27,6 +27,7 @@
 | task-111 | SNS 마케팅 시스템 — 가상 채널 3종(픽쳐그램/숏핑/동네게시판), 익일 손님 수·분포 지연 보상, | 2026-07-11 (Codex 코드리뷰·640×360 시각승인·수동 smoke·오너 비용 재시드 승인 대기) | [summary](../artifacts/task-111-summary.md) |
 | task-112 | 이벤트/장애물 시스템 — 재료값 폭등·위생 점검·임대료 인상·단체 손님 4종, 전날 예고→당일 적용 | 2026-07-11 (Codex 코드리뷰·640×360 시각승인·수동 smoke·오너 시드 재확정 승인 대기) | [summary](../artifacts/task-112-summary.md) |
 | task-113 | 저장/불러오기 — 순수 C# `GameState` → `JsonUtility` 단일 슬롯 자동 저장, 프로브→버전→ | 2026-07-12 (Codex 코드리뷰·640×360 시각승인·수동 smoke 대기) | [summary](../artifacts/task-113-summary.md) |
+| task-114 | 아트 마감 패스 — task-109 이월 한식 톤 정합 리컬러(결정론적 exact-match 팔레트 스왑), | 2026-07-12 (오너/Codex 640×360 시각 승인·수동 Play smoke 대기) | [summary](../artifacts/task-114-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조
