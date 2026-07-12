@@ -91,11 +91,19 @@ namespace ClientIsKing.EditorTools
                 new Vector2(0f, -146f), new Vector2(420f, 24f));
             saveStatusText.color = SteamCream;
 
-            // focus: 상하 explicit navigation — 게임 시작(위) ↔ 이어하기(아래) (G1).
-            LinkVerticalNavigation(startButton, continueButton);
+            // task-117 (D절): 크레딧 버튼 — Shop AdvanceButton (250,150) 좌표 관례 미러, 기존 4요소와 비겹침.
+            var creditsButton = CreateButton(canvasGo.transform, "CreditsButton", "크레딧",
+                new Vector2(250f, 150f), new Vector2(120f, 32f));
+
+            // focus: 상하 explicit navigation — 크레딧(위) ↔ 게임 시작 ↔ 이어하기 (G1 + task-117 D절,
+            // 기존 Start↔Continue 연결은 체인 확장으로 그대로 보존된다).
+            LinkVerticalNavigation(creditsButton, startButton, continueButton);
 
             var controller = canvasGo.AddComponent<MainMenuController>();
             controller.EditorInit(startButton, continueButton, saveStatusText);
+
+            // 크레딧 패널 — 기존 요소 전부 생성 후 마지막에 생성해 최상단 sibling 을 보장한다 (task-117 D절).
+            BuildCreditsPanel(canvasGo, creditsButton, startButton, continueButton);
 
             SaveScene(scene, MainMenuPath);
         }
@@ -818,6 +826,46 @@ namespace ClientIsKing.EditorTools
             // controller 는 Canvas 탑재 (오버레이 GO 비활성에도 Update 폴링 유지 — PhaseHud 전례).
             var controller = canvasGo.AddComponent<EndingOverlayController>();
             controller.EditorInit(panel, title, stats, message, mainMenuButton);
+        }
+
+        // ── 크레딧 패널 (task-117 D/E절 — MainMenu 모달, 640×360 픽셀 고정, Panel_Ending 미러) ──
+        static void BuildCreditsPanel(GameObject canvasGo, Button openButton, Button startButton,
+            Button continueButton)
+        {
+            var panel = CreateUIObject("Panel_Credits", canvasGo.transform);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(640f, 360f);
+            var dim = panel.AddComponent<Image>();
+            // Ink Navy alpha ≈0.92 dim — raycastTarget 기본 true 로 하부 UI 클릭을 차단한다 (모달, D절).
+            var dimColor = (Color)InkNavy;
+            dimColor.a = 0.92f;
+            dim.color = dimColor;
+
+            var title = CreateText(panel.transform, "CreditsTitleText", "크레딧", 24f,
+                new Vector2(0f, 158f), new Vector2(400f, 32f));
+            title.color = BrassAmber;
+
+            // 문구는 CreditsCopy 상수를 빌드 타임에 굽는다 (B절 — 씬 드리프트는 동기화 테스트 ④가 잡는다).
+            var leftText = CreateText(panel.transform, "CreditsLeftText", CreditsCopy.LeftColumn, 10f,
+                new Vector2(-160f, 10f), new Vector2(300f, 240f));
+            leftText.alignment = TextAlignmentOptions.TopLeft;
+            leftText.color = SteamCream;
+            var rightText = CreateText(panel.transform, "CreditsRightText", CreditsCopy.RightColumn, 10f,
+                new Vector2(160f, 10f), new Vector2(300f, 240f));
+            rightText.alignment = TextAlignmentOptions.TopLeft;
+            rightText.color = SteamCream;
+
+            var closeButton = CreateButton(panel.transform, "CreditsCloseButton", "닫기",
+                new Vector2(0f, -152f), new Vector2(200f, 40f));
+            // 포커스 탈출 차단 (E절 P0-1) — 패널이 열린 동안 방향키 이동 자체가 불가하도록 굽는다.
+            closeButton.navigation = new Navigation { mode = Navigation.Mode.None };
+
+            panel.SetActive(false); // 초기 비활성 — 표시는 CreditsController 토글이 결정한다
+
+            var controller = canvasGo.AddComponent<CreditsController>();
+            controller.EditorInit(panel, openButton, closeButton, startButton, continueButton);
         }
 
         /// <summary>SNS 채널 버튼 — Night Blue/Steam Cream 라벨 2행 11pt, 집행 완료 outline 은 controller 가 켠다 (F1/F2).</summary>

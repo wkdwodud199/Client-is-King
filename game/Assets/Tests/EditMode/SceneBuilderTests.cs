@@ -426,6 +426,23 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(0, secondListeners, "재실행 후에도 엔딩 버튼 persistent listener 는 0 이어야 한다");
         }
 
+        // ── task-117: MainMenu 크레딧 오브젝트 존재 (추가 검증만 — 기존 기대값 무변경) ──
+
+        [Test]
+        public void MainMenu_Has_Credits_Button_And_Panel()
+        {
+            var scene = OpenSingle(SceneBuilder.MainMenuPath);
+            var canvasGo = Root(scene, "Canvas");
+            Assert.IsNotNull(canvasGo, "Canvas 누락");
+
+            Assert.IsNotNull(canvasGo.transform.Find("CreditsButton")?.GetComponent<Button>(), "CreditsButton 누락");
+            var panel = canvasGo.transform.Find("Panel_Credits");
+            Assert.IsNotNull(panel, "Panel_Credits 누락");
+            Assert.IsFalse(panel.gameObject.activeSelf, "크레딧 패널은 초기 비활성이어야 한다 (task-117 D절)");
+            Assert.IsNotNull(canvasGo.GetComponent<CreditsController>(),
+                "CreditsController 는 Canvas 탑재여야 한다 (task-117 E절)");
+        }
+
         // ── task-112 U7: 이벤트 catalog 4종 양씬 동일 주입 + 오브젝트 멱등 ───
 
         [Test]

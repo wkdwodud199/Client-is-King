@@ -8,7 +8,7 @@
 
 | Task ID | 제목 | Status | 비고 |
 |---------|------|--------|------|
-| (없음) | — | — | — |
+| task-116 | 설계 문서 — task-116: 현대 NYC 코리아타운 아트 오버홀 (승인 콘셉트 → 런타임 적용 계약) | ready | — |
 
 ## 완료 작업
 
@@ -29,6 +29,7 @@
 | task-113 | 저장/불러오기 — 순수 C# `GameState` → `JsonUtility` 단일 슬롯 자동 저장, 프로브→버전→ | 2026-07-12 (Codex 코드리뷰·640×360 시각승인·수동 smoke 대기) | [summary](../artifacts/task-113-summary.md) |
 | task-114 | 아트 마감 패스 — task-109 이월 한식 톤 정합 리컬러(결정론적 exact-match 팔레트 스왑), | 2026-07-12 (오너/Codex 640×360 시각 승인·수동 Play smoke 대기) | [summary](../artifacts/task-114-summary.md) |
 | task-115 | 밸런싱 + 엔딩 + Windows 빌드 (M3 최종 — 데모 완료) | 2026-07-12 (오너 플레이테스트·640×360 시각 승인·빌드 exe 스모크·Codex 코드리뷰 대기) | [summary](../artifacts/task-115-summary.md) |
+| task-117 | 인게임 크레딧 UI (릴리스 필수 표기) | 2026-07-13 (source-ready — 시각 승인·Codex 코드리뷰 대기) | [summary](../artifacts/task-117-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조
