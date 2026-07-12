@@ -1,0 +1,15 @@
+## Design Review: task-113 — 2026-07-12
+- Reviewer: Codex
+- Review status: request-changes
+- Feedback:
+  - 범위와 하드캡은 대체로 승인한다. 저장/불러오기 단일 슬롯, `JsonUtility` 전용, List 기반, 신규 씬/신규 singleton manager 없음, 아트/밸런싱 제외가 명확하다 (`kb/tasks/task-113/design.md:38`, `kb/tasks/task-113/design.md:61`, `kb/tasks/task-113/design.md:75`, `kb/tasks/task-113/design.md:87`; 하드캡 원천 `kb/concepts/demo-scope.md:24`, `kb/concepts/demo-scope.md:35`).
+  - 핵심 결정인 "GameState 평면 유지 + schemaVersion만 추가"는 v1 확정값으로 승인한다. 현재 데모에는 G4 중첩 후보의 실데이터가 없고, 지금 중첩화하면 JsonUtility 이득 없이 참조/테스트 회귀면만 커진다는 근거가 타당하다 (`kb/tasks/task-113/design.md:151`, `kb/tasks/task-113/design.md:157`, `kb/tasks/task-113/design.md:164`). 단, 아래 version policy 변경은 필요하다.
+  - 변경 요청: V11이 `plan.OrderCount == serviceOrders.Count`만 확인하고 주문 내용 전수 비교를 의도적으로 기각한다 (`kb/tasks/task-113/design.md:300`, `kb/tasks/task-113/design.md:306`, `kb/tasks/task-113/design.md:679`). 이 상태에서는 손상 JSON이 같은 개수의 다른 `recipeId`/`customerId`/`partySize`/`snsInflow`/`eventInflow` 주문으로 바뀌어도 V7 catalog/통계 검증을 통과할 수 있고, task-110의 "저장 후 재개해도 같은 DayPlan/주문" 계약을 로드 검증이 막지 못한다 (`kb/tasks/task-110/design.md:504`). SaveOps에 합성 로직을 복제하지 말고, manager V11에서 기존 `TryBuildDayPlan` + `ServiceOps.BuildOrders(plan, customerDefs)` 결과의 주문 identity 필드만 저장 주문과 비교하라. `served`/`missed`/index 진행 상태는 저장값을 존중하면 된다.
+  - 변경 요청: V1~V10 매트릭스가 필수 완전성을 충분히 닫지 못했다. V6/V7/V9는 "항목 null 금지"만 있고 `ingredientStocks`/`serviceOrders`/`snsCampaignHistory` 리스트 자체 null 또는 필드 누락을 명시 실패로 고정하지 않는다 (`kb/tasks/task-113/design.md:295`, `kb/tasks/task-113/design.md:296`, `kb/tasks/task-113/design.md:298`). V5도 `selectedGenreId == ""`만 규정해 `null`을 빈 값처럼 취급할 여지가 있다 (`kb/tasks/task-113/design.md:294`). task-111/112 리뷰 교훈은 누락/손상 데이터의 조용한 기본값 진행을 막는 것이므로, 모든 저장 List와 문자열 ID 필드의 non-null 요구를 검증 매트릭스와 테스트 기준에 명시해야 한다.
+  - 변경 요청: B1의 "기본값이 하위호환인 신규 필드 추가는 schemaVersion 유지 가능"은 RT2의 `TrySerialize(TryDeserialize(json)) == json` 바이트 동일 계약과 충돌한다 (`kb/tasks/task-113/design.md:147`, `kb/tasks/task-113/design.md:487`, `kb/tasks/task-113/design.md:599`). JsonUtility는 누락 필드를 기본값으로 채우므로, 같은 v1에서 필드를 추가하면 과거 v1 파일 재직렬화 시 새 키가 생겨 바이트 동일성이 깨진다. v1 계약은 B3 전 필드 필수로 고정하고, 직렬화 대상 필드 추가는 schemaVersion 증가 또는 RT2 적용 범위/정규화 규칙을 별도로 정의해야 한다.
+  - 결정론/파일 I/O/트리거 방향은 건전하다. 저장·peek·로드가 같은 `TryValidateState`를 공유한다는 제약, `tmp`→`Replace/Move` 원자 쓰기, `Awake`의 암묵 새 게임이 저장하지 않는 구조, `Application.isPlaying` 자동 저장 가드는 구현 가능한 계약이다 (`kb/tasks/task-113/design.md:92`, `kb/tasks/task-113/design.md:337`, `kb/tasks/task-113/design.md:371`, `kb/tasks/task-113/design.md:624`). validator도 통과했다.
+  - `EnsureServiceDay` 제거는 승인한다. 설계의 C3 우회 구멍 분석이 맞고 (`kb/tasks/task-113/design.md:391`), 현재 코드 검색 기준 호출자는 정의부뿐이다 (`game/Assets/Scripts/Runtime/Service/ServiceManager.cs:55`). 컴파일 게이트로 재확인하면 충분하다 (`kb/tasks/task-113/design.md:639`).
+- Action required:
+  - V11을 주문 수 비교에서 주문 identity 필드 비교로 강화하고, 같은 count의 다른 주문 JSON이 명시 실패하는 테스트를 추가한다.
+  - V1~V10에 모든 저장 List와 문자열 ID 필드의 non-null/필수 완전성 규칙을 추가하고, 필드 누락·명시 null 손상 JSON을 저장/peek/로드 세 경로에서 같은 사유로 실패시키는 테스트를 추가한다.
+  - B1 schemaVersion 정책을 RT2 바이트 동일성과 일관되게 정정한다. 권장: v1은 B3 전 필드 필수, 직렬화 대상 필드 추가는 version bump 또는 명시적 정규화 정책을 요구한다.
