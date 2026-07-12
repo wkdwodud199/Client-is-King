@@ -90,11 +90,11 @@ namespace ClientIsKing.Tests.EditMode
             gm.State.day = 10; // 예고 대상 day 11, C4 표상 임대료 인상 신규 활성화(영구).
             var service = ClientIsKing.Service.ServiceManager.Instance;
             Assert.IsTrue(service.TryExecuteSnsCampaign("local_board", out var execResult), execResult.Message);
-            gm.State.cash = 5000; // 다음날 운영비(13,800원) 대비 부족해 경고 문구가 표시되도록 설정.
+            gm.State.cash = 5000; // 다음날 운영비(17,250원) 대비 부족해 경고 문구가 표시되도록 설정.
             TestSceneSupport.ForceOnEnable(controller);
 
             var snsInfoText = nightPanel.Find("SnsInfoText").GetComponent<TMPro.TMP_Text>();
-            Assert.IsTrue(snsInfoText.text.Contains("13,800"), $"임대료 인상 반영 운영비 경고가 있어야 함: '{snsInfoText.text}'");
+            Assert.IsTrue(snsInfoText.text.Contains("17,250"), $"임대료 인상 반영 운영비 경고가 있어야 함: '{snsInfoText.text}'");
         }
     }
 }

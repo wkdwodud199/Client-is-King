@@ -83,7 +83,7 @@ namespace ClientIsKing.Events
         /// <summary>지속 이벤트 예고 라인 (F2 카피). 지속 없으면 빈 문자열.</summary>
         public string ContinuingNoticeLine { get; }
 
-        /// <summary>내일 운영비 = MulMilliHalfUp(12000, 내일 milli) + 내일 flat.</summary>
+        /// <summary>내일 운영비 = MulMilliHalfUp(EventOps.BaseDailyOperatingCost, 내일 milli) + 내일 flat.</summary>
         public int NextDayOperatingCost { get; }
     }
 }

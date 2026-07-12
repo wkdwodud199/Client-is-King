@@ -21,6 +21,11 @@ namespace ClientIsKing.Events
     /// </summary>
     public static class EventOps
     {
+        /// <summary>일일 운영비 시드 (task-115) — SettlementOps.DailyOperatingCost 와 동일 값.
+        /// EventOps 는 계층 규약상 Settlement 를 직접 참조하지 않으므로(진입부 주석 — Genre 만 허용)
+        /// 명명 상수로 독립 보유하고 동기 핀 테스트(BalanceEndingGuardTests)로 drift 를 차단한다.</summary>
+        public const int BaseDailyOperatingCost = 15000;
+
         const int ScheduleSeed = 47;
         const int OccurrenceThresholdMilli = 450;
 
@@ -441,7 +446,7 @@ namespace ClientIsKing.Events
                 upcomingLine = $"{upcomingLine} · 지속: {continuingLine.Substring(continuingLine.IndexOf(']') + 2)}";
             }
 
-            int nextDayOperatingCost = GenreSelectionOps.MulMilliHalfUp(12000, fx.OperatingCostMilli) + fx.OperatingCostFlat;
+            int nextDayOperatingCost = GenreSelectionOps.MulMilliHalfUp(BaseDailyOperatingCost, fx.OperatingCostMilli) + fx.OperatingCostFlat;
 
             forecast = new EventForecast(nextDay, activatedEventId, upcomingLine, continuingLine, nextDayOperatingCost);
             return true;
@@ -505,7 +510,7 @@ namespace ClientIsKing.Events
 
             var defById = BuildDefLookup(defs ?? Array.Empty<GameEventDefInput>());
             int surcharge = marketSpendDay == fx.Day ? marketEventSurchargeToday : 0;
-            int rentDelta = GenreSelectionOps.MulMilliHalfUp(12000, fx.OperatingCostMilli) - 12000;
+            int rentDelta = GenreSelectionOps.MulMilliHalfUp(BaseDailyOperatingCost, fx.OperatingCostMilli) - BaseDailyOperatingCost;
 
             bool abbreviated = fx.ActiveEventIds.Count >= 3;
             var parts = new List<string>();

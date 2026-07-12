@@ -20,7 +20,7 @@ namespace ClientIsKing.Tests.EditMode
     {
         const int SampleStart = 2;
         const int SampleEnd = 101;
-        const int OperatingCost = 12000;
+        const int OperatingCost = 15000; // SettlementOps.DailyOperatingCost 와 동일 값 (task-115 B3 시드, 오너 승인 재확정)
 
         static List<T> LoadAll<T>(string folder) where T : UnityEngine.Object
         {
@@ -170,15 +170,13 @@ namespace ClientIsKing.Tests.EditMode
                 sumByGenre[genreDef.Id] = sum / (SampleEnd - SampleStart + 1);
             }
 
-            // design.md G절 표 실측값과 ±5(정수 반올림 오차)까지 허용 — 정수 결정론이므로 큰 괴리는 로직 오류.
-            AssertClose("gukbap", minByGenre, 5031, sumByGenre, 35375.9);
-            AssertClose("bunsik", minByGenre, 15073, sumByGenre, 34708.6);
-            // 면류 최저값은 U7 재검산 결과 15,991원이 정확하다 — design.md 15,954는 0.95f 를 이상화 십진수로
-            // 계산한 값이라 float32 정밀도(0.95f==0.949999988...) 하에서 재료 원가가 소폭 낮게 나온다(Day3
-            // 재검산으로 원인 확정: bibim_guksu/janchi_guksu 의 noodle/gochujang 원가가 실제로는 unitGenre
-            // 332/142 인데 이상화 계산은 333/143 — 그 차이가 100일 누적되면 min 이 +37원 어긋난다).
-            AssertClose("noodles", minByGenre, 15991, sumByGenre, 36429.8);
-            AssertClose("generalist", minByGenre, 13350, sumByGenre, 37929.0);
+            // task-115 B3 오너 승인 재확정(운영비 12,000→15,000) 실측값 — 100일 전 장르 순이익>0 확인 완료.
+            // gukbap min 은 여전히 day32(임대료 인상 영구 활성)이 최저 — 5,031(12,000 기준)에서
+            // 15,000 기준 1,581 로 하락했으나 양수 유지(±5 정수 반올림 오차 허용, 큰 괴리는 로직 오류).
+            AssertClose("gukbap", minByGenre, 1581, sumByGenre, 31966.41);
+            AssertClose("bunsik", minByGenre, 11623, sumByGenre, 31299.10);
+            AssertClose("noodles", minByGenre, 12541, sumByGenre, 33051.60);
+            AssertClose("generalist", minByGenre, 9900, sumByGenre, 34519.49);
         }
 
         static void AssertClose(string genreId, Dictionary<string, double> minByGenre, double expectedMin,
@@ -217,11 +215,11 @@ namespace ClientIsKing.Tests.EditMode
                 results[genreDef.Id] = net;
             }
 
-            Assert.That(results["gukbap"], Is.InRange(27851 - 5, 27851 + 5));
-            Assert.That(results["bunsik"], Is.InRange(15689 - 5, 15689 + 5));
-            // 면류는 Guard3/Guard1 과 같은 float32 정밀도 원인(design.md 재검산 미실행)으로 U7 재검산값 20,538 이 정확하다.
-            Assert.That(results["noodles"], Is.InRange(20538 - 5, 20538 + 5), "면류 3중첩 순이익 (U7 float32 재검산값)");
-            Assert.That(results["generalist"], Is.InRange(19478 - 5, 19478 + 5));
+            // task-115 B3 오너 승인 재확정(운영비 15,000) 실측값 — 3중첩 최악 조합에서도 전 장르 순이익 양수.
+            Assert.That(results["gukbap"], Is.InRange(24401 - 5, 24401 + 5));
+            Assert.That(results["bunsik"], Is.InRange(12239 - 5, 12239 + 5));
+            Assert.That(results["noodles"], Is.InRange(17088 - 5, 17088 + 5));
+            Assert.That(results["generalist"], Is.InRange(16028 - 5, 16028 + 5));
         }
 
         // ── 가드 3: 데모 3일 생존 (Day1 무이벤트 ~ Day3 폭등) ────────────────
@@ -257,20 +255,18 @@ namespace ClientIsKing.Tests.EditMode
                 cashByGenre[genreDef.Id] = cash;
             }
 
-            Assert.GreaterOrEqual(cashByGenre["bunsik"], 121568, "분식 Day3 마감 잔액 최저 기준");
-
-            // Day3 폭등 순이익(D6 표) — 장르별 실측과 정확히 일치해야 한다(정수 결정론, ±5 허용).
             double gukbapDay3 = SimulateDayNetProfit(Genres.First(g => g.Id == "gukbap"), recipes, customers, ingredients, 3, fxByDay[3]);
             double bunsikDay3 = SimulateDayNetProfit(Genres.First(g => g.Id == "bunsik"), recipes, customers, ingredients, 3, fxByDay[3]);
             double noodlesDay3 = SimulateDayNetProfit(Genres.First(g => g.Id == "noodles"), recipes, customers, ingredients, 3, fxByDay[3]);
             double generalistDay3 = SimulateDayNetProfit(Genres.First(g => g.Id == "generalist"), recipes, customers, ingredients, 3, fxByDay[3]);
 
-            Assert.That(gukbapDay3, Is.InRange(26725 - 5, 26725 + 5), "국밥 Day3 폭등 순이익");
-            Assert.That(bunsikDay3, Is.InRange(25489 - 5, 25489 + 5), "분식 Day3 폭등 순이익");
-            // 면류는 design.md D6 표(30,579)가 float32 정밀도(0.95f == 0.949999988...)를 반영하지 않은
-            // 이상화 십진 계산이었다 — 실제 float32 경계에서 재검산한 정확값은 30,621원(U7 재검산, 아래 참조).
-            Assert.That(noodlesDay3, Is.InRange(30621 - 5, 30621 + 5), "면류 Day3 폭등 순이익 (U7 float32 재검산값)");
-            Assert.That(generalistDay3, Is.InRange(36546 - 5, 36546 + 5), "제네럴리스트 Day3 폭등 순이익");
+            // task-115 B3 오너 승인 재확정(운영비 15,000) 실측값.
+            Assert.GreaterOrEqual(cashByGenre["bunsik"], 112568, "분식 Day3 마감 잔액 최저 기준");
+
+            Assert.That(gukbapDay3, Is.InRange(23725 - 5, 23725 + 5), "국밥 Day3 폭등 순이익");
+            Assert.That(bunsikDay3, Is.InRange(22489 - 5, 22489 + 5), "분식 Day3 폭등 순이익");
+            Assert.That(noodlesDay3, Is.InRange(27621 - 5, 27621 + 5), "면류 Day3 폭등 순이익");
+            Assert.That(generalistDay3, Is.InRange(33546 - 5, 33546 + 5), "제네럴리스트 Day3 폭등 순이익");
         }
 
         // ── 가드 4: 단체는 항상 순기여 양수 (Day 5) ──────────────────────────
@@ -369,10 +365,10 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreEqual(2794, cost);
             Assert.AreEqual(724, cost - EconomyOps.CalculatePurchaseCost(pork, 2, 1.15f));
 
-            // D5: 임대료/위생 known vectors — 정수 결정론이므로 정확 일치.
-            Assert.AreEqual(13800, GenreSelectionOps.MulMilliHalfUp(12000, 1150));
-            Assert.AreEqual(20000, 12000 + 8000);
-            Assert.AreEqual(21800, GenreSelectionOps.MulMilliHalfUp(12000, 1150) + 8000);
+            // D5: 임대료/위생 known vectors — 정수 결정론이므로 정확 일치 (task-115 B3 시드 15,000, 오너 승인 재확정).
+            Assert.AreEqual(17250, GenreSelectionOps.MulMilliHalfUp(15000, 1150));
+            Assert.AreEqual(23000, 15000 + 8000);
+            Assert.AreEqual(25250, GenreSelectionOps.MulMilliHalfUp(15000, 1150) + 8000);
         }
     }
 }

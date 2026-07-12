@@ -192,7 +192,7 @@ namespace ClientIsKing.Tests.EditMode
         [Test]
         public void Day1_To_3_Full_Service_Net_Profit_After_Operating_Cost_Is_Positive_Every_Day()
         {
-            const int operatingCost = 12000; // SettlementOps.DailyOperatingCost 와 동일 값 (design.md D5 계약)
+            const int operatingCost = 15000; // SettlementOps.DailyOperatingCost 와 동일 값 (task-115 B3 시드, 오너 승인 재확정)
             var recipes = Recipes;
             var customers = Customers;
             var ingredients = LoadAll<IngredientDef>("Assets/Data/Definitions/Ingredients");

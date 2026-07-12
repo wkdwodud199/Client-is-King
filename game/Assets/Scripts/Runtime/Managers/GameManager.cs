@@ -216,6 +216,11 @@ namespace ClientIsKing.Managers
                 reason = "파산 상태에서는 진행할 수 없습니다.";
                 return false;
             }
+            if (EndingOps.GetStatus(state) == RunEndingStatus.Cleared)
+            {
+                reason = "데모 클리어 상태에서는 진행할 수 없습니다.";
+                return false;
+            }
 
             switch (state.currentPhase)
             {
@@ -312,7 +317,7 @@ namespace ClientIsKing.Managers
         /// </summary>
         public DayPhase AdvancePhase()
         {
-            if (state.isBankrupt)
+            if (EndingOps.IsRunEnded(state))
             {
                 return state.currentPhase;
             }
@@ -325,9 +330,13 @@ namespace ClientIsKing.Managers
                 var result = SettlementOps.ApplyDailySettlement(state, fx.OperatingCostMilli, fx.OperatingCostFlat);
                 if (result.Applied)
                 {
-                    AutoSave(); // F2 트리거 3 — 정산 신규 적용 (파산 확정 포함)
+                    AutoSave(); // F2 트리거 3 — 정산 신규 적용 (파산 확정 포함, 클리어 상태도 여기서 저장된다)
                 }
                 if (result.Bankrupt)
+                {
+                    return state.currentPhase;
+                }
+                if (EndingOps.GetStatus(state) == RunEndingStatus.Cleared)
                 {
                     return state.currentPhase;
                 }
@@ -376,6 +385,13 @@ namespace ClientIsKing.Managers
         public void LoadShopScene()
         {
             SceneManager.LoadScene("Shop");
+        }
+
+        /// <summary>MainMenu 씬을 로드한다 (Build Settings 등록 전제 — SceneBuilder 가 보장).
+        /// task-115: 엔딩 오버레이 "메인 메뉴로 ▶" 버튼 전용 (LoadShopScene 미러).</summary>
+        public void LoadMainMenuScene()
+        {
+            SceneManager.LoadScene("MainMenu");
         }
 
         // ── 저장/불러오기 API (task-113 F1/F4) ──────────────────────────────

@@ -14,8 +14,11 @@ namespace ClientIsKing.Settlement
     /// </summary>
     public static class SettlementOps
     {
-        /// <summary>일일 운영비 (임대료+운영, 데모 초안 — 임대료 인상 이벤트는 task-110).</summary>
-        public const int DailyOperatingCost = 12000;
+        /// <summary>일일 운영비 (임대료+운영, task-115 밸런싱 — 임대료 인상 이벤트는 task-110).
+        /// design.md B3 원안(28,000·밴드[22000,30000])은 전제 오류(평균일 마진 ~37k 로 오인 —
+        /// 실측 최악일 마진은 gukbap day32 기준 ~5k)로 폐기되었다(오너 승인). 최종 시드는 오너 결정
+        /// "온건(~15k)" 절차로 Guard1(100일 전 장르 순이익&gt;0)이 green인 최댓값으로 확정한다.</summary>
+        public const int DailyOperatingCost = 15000;
 
         public static bool IsSettlementApplied(GameState state)
         {

@@ -473,7 +473,7 @@ namespace ClientIsKing.Tests.EditMode
             var current = new List<ActiveEventState>();
             Assert.IsTrue(EventOps.TryBuildForecast(current, 11, SeedDefs(), out var forecast, out var reason), reason);
             Assert.AreEqual(Rent, forecast.UpcomingEventId);
-            Assert.AreEqual(13800, forecast.NextDayOperatingCost, "MulMilliHalfUp(12000,1150)=13800");
+            Assert.AreEqual(17250, forecast.NextDayOperatingCost, "MulMilliHalfUp(15000,1150)=17250");
         }
 
         [Test]
@@ -604,7 +604,7 @@ namespace ClientIsKing.Tests.EditMode
             };
             EventOps.TryBuildDayEffects(active, 13, SeedDefs(), out var fx, out _);
             string line = EventOps.BuildSettlementCauseLine(fx, SeedDefs(), 13, 3009, 0, 0);
-            Assert.AreEqual("이벤트: 위생 -8,000 · 폭등 -3,009 · 임대 -1,800", line, "3종 이상은 축약 포맷, kind 상수 사용");
+            Assert.AreEqual("이벤트: 위생 -8,000 · 폭등 -3,009 · 임대 -2,250", line, "3종 이상은 축약 포맷, kind 상수 사용");
         }
 
         [Test]
@@ -619,7 +619,7 @@ namespace ClientIsKing.Tests.EditMode
             };
             EventOps.TryBuildDayEffects(active, 99, SeedDefs(), out var fx, out _);
             string line = EventOps.BuildSettlementCauseLine(fx, SeedDefs(), 99, 3009, 1, 18900);
-            Assert.AreEqual("이벤트: 단체 1/1 +18,900 · 위생 -8,000 · 폭등 -3,009 · 임대 -1,800", line);
+            Assert.AreEqual("이벤트: 단체 1/1 +18,900 · 위생 -8,000 · 폭등 -3,009 · 임대 -2,250", line);
         }
 
         [Test]
@@ -628,7 +628,7 @@ namespace ClientIsKing.Tests.EditMode
             var active = new List<ActiveEventState> { new ActiveEventState { eventId = Rent, remainingDays = 0 } };
             EventOps.TryBuildDayEffects(active, 11, SeedDefs(), out var fx, out _);
             string line = EventOps.BuildSettlementCauseLine(fx, SeedDefs(), 11, 0, 0, 0);
-            Assert.AreEqual("이벤트: 임대료 인상 -1,800원", line, "MulMilliHalfUp(12000,1150)-12000=1800");
+            Assert.AreEqual("이벤트: 임대료 인상 -2,250원", line, "MulMilliHalfUp(15000,1150)-15000=2250");
         }
 
         // ── F2: 효과 요약 ────────────────────────────────────────────────────

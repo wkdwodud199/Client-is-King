@@ -190,7 +190,7 @@ namespace ClientIsKing.Tests.EditMode
             try
             {
                 var state = gm.State;
-                state.cash = 100; // 운영비(12,000) 미달
+                state.cash = 100; // 운영비(28,000) 미달
                 state.currentPhase = DayPhase.Settlement;
 
                 var afterFirst = gm.AdvancePhase(); // 정산 선적용 → 파산 → 진행 차단

@@ -22,7 +22,7 @@ namespace ClientIsKing.Tests.EditMode
     {
         const int SampleDays = 100;
         const float DesignToleranceRatio = 0.01f;
-        const int OperatingCost = 12000;
+        const int OperatingCost = 15000; // SettlementOps.DailyOperatingCost 와 동일 값 (task-115 B3 시드, 오너 승인 재확정) — DesignNet 표는 운영비 미포함이라 미사용
 
         static readonly string[] GenreIds = { "gukbap", "bunsik", "noodles", "generalist" };
         static readonly string[] ChannelIds = { "photo_feed", "short_form", "local_board" };
