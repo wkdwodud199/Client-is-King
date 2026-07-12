@@ -4,7 +4,7 @@
 > Inputs: kb/tasks/task-113/implementation-notes.md
 > Outputs: 이 요약 문서 — 저장/불러오기 시스템(JsonUtility 순수 파이프라인·검증 매트릭스·매니저 배선·
 > UI·SceneBuilder·테스트·PlayMode) 완료 요약과 인계
-> Next step: **Codex 코드 리뷰 + 640×360 시각 승인 + 수동 Play smoke → 통과 시 task-114(아트 마감)**
+> Next step: **Codex 코드 리뷰 완료**(2026-07-12, reviews/001-003 — 코드 결함 소진). 남은 오너 게이트: 640×360 시각 승인 + 수동 Play smoke(design.md I16). (task-114/115 는 이미 완료됨)
 
 ## 작업 요약
 
@@ -57,8 +57,8 @@
 
 ## 검증
 
-- 컴파일 exit 0(error CS 0) · **EditMode 428/428**(기존 332 + task-113 신규 96, 무회귀) ·
-  **PlayMode 8/8**(기존 6 + 신규 2, 무회귀) · `git status --short game`에 세이브 산출물 없음(실사용
+- 컴파일 exit 0(error CS 0) · **EditMode 428/428 · PlayMode 8/8**(task-113 **완료 시점** 기준선 —
+  기존 332/6 + task-113 신규 96/2, 무회귀) · `git status --short game`에 세이브 산출물 없음(실사용
   persistentDataPath 도 재확인) · 신규 파일 전부 `.meta` 존재 · Build Settings 씬 정확히 2개(하드캡
   불변) · `EnsureServiceDay` 제거 후 컴파일 통과(호출자 0).
 - **중요 발견(향후 세션 참고, task-112 노트 계승)**: Unity 배치 테스트에서 `-runTests`는 `-quit`과
@@ -66,9 +66,16 @@
   프로세스 종료를 폴링해야 한다(백그라운드 실행 래퍼의 "완료" 보고가 실제 프로세스 종료보다 먼저
   오는 경우가 반복 관찰됨 — 결과 파일 존재와 프로세스 부재를 함께 확인해야 한다).
 
+> **후속 (2026-07-12)**: task-114/115 가 테스트 스위트를 확장(→486)한 뒤, Codex 코드 리뷰가 이 구현의
+> **실질 버그**를 발견해 수정했다(아래·implementation-notes 참조). V11 수정 후 현재 기준선은
+> **EditMode 494 / PlayMode 9**(독립 재검증 통과). 위 428/8 은 task-113 원 완료 시점 값이다.
+
 ## 미결(Codex/오너 게이트)
 
-- Codex 코드 리뷰(U1~U6 전체 diff) — 미수행.
+- Codex 코드 리뷰(U1~U6 전체 diff) — **완료** (2026-07-12, reviews/001-003). 3라운드에 걸쳐
+  P1(`TryPeekSave` V11 생략 → 변조 세이브 미잠금)·P1 심화(peek 의 V11 이 전역 State 로 계획 재생성 →
+  콜드 스타트에서 정상 세이브 오잠금) 수정 → **코드 결함 소진**(3차 리뷰: "코드 경로 자체의 추가
+  결함 없음"). 남은 request-changes 는 아래 오너 게이트뿐.
 - 640×360 원본 캡처 시각 승인(MainMenu 이어하기 블록·Night 저장 라인) — 미수행(self-approve 금지).
 - 수동 Play smoke(design.md I16 — 종료 후 이어하기 재개, 파산 잠금, 손상 파일 3종 사유 표시) — 미수행.
 

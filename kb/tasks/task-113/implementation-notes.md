@@ -3,8 +3,9 @@
 > Status: done
 > Inputs: kb/tasks/task-113/design.md
 > Outputs: 저장/불러오기 도메인(U1)·매니저 배선(U2)·UI/SceneBuilder(U3-U4)·테스트/PlayMode(U5)·검증·기록(U6)
-> Next step: Codex 코드 리뷰(U1~U6 전체 diff) + 640×360 시각 승인 + 수동 Play smoke(종료 후 이어하기 재개,
-> 파산 잠금, 손상 파일 3종 사유 표시) → 통과 시 task-114(아트 마감)
+> Next step: Codex 코드 리뷰 완료(2026-07-12, reviews/001-003 — 코드 결함 소진, "Codex 대기 게이트"
+> 절 참조). 남은 오너 게이트: 640×360 시각 승인 + 수동 Play smoke(종료 후 이어하기 재개, 파산 잠금,
+> 손상 파일 3종 사유 표시). (task-114/115 는 이미 완료됨)
 
 ## 현재 상태: done (구현 완료, Unity green — 세 그룹 세션에 걸쳐 완료)
 
@@ -119,6 +120,10 @@
 | 컴파일 | `Unity.exe -batchmode -quit -nographics -projectPath game` | **exit 0**, `error CS` 0 (그룹1/2/3 단계별 3회 확인) |
 | EditMode | `-runTests -testPlatform EditMode`(`-quit` 없이) | **exit 0, 428/428 pass, 0 fail**(그룹1 종료 시점 413 + U5 신규 15 = 428, 무회귀. 최초 실행 시 자체 픽스처 버그 2건 발견 즉시 수정 후 재실행에서 확정) |
 | PlayMode | `-runTests -testPlatform PlayMode`(`-quit` 없이) | **exit 0, 8/8 pass**(기존 6 + 신규 2, 무회귀. 최초 실행에서 이미 통과) |
+
+> **위 428/8 은 task-113 원 완료 시점 기준선이다.** 이후 task-114/115 가 스위트를 486 으로 확장했고,
+> 2026-07-12 Codex 코드 리뷰가 발견한 실질 버그를 수정하며 회귀 테스트 8건을 추가해 **현재 기준선은
+> EditMode 494 / PlayMode 9**(독립 재검증 통과). 상세는 아래 "Codex 대기 게이트" 절.
 
 - Build Settings 씬 정확히 2개(`MainMenu.unity`, `Shop.unity`) — 씬 하드캡 불변.
 - `git status --short game`에 세이브 산출물 없음 재확인: 실사용
