@@ -220,6 +220,11 @@ namespace ClientIsKing.Tests.PlayMode
             Assert.AreEqual(1, gm.State.activeEvents.Count);
             Assert.AreEqual("ingredient_price_surge", gm.State.activeEvents[0].eventId);
 
+            // task-115 밸런싱(운영비 15,000) 이후 Day1~2 전부 포기(무구매)는 시작 자금 30,000원을
+            // 정확히 소진한다(cash=0, 파산은 아님 — 이 fixture 는 이벤트 예고/폭등 메커니즘 검증이
+            // 목적이지 밸런스 압박 검증이 아니므로, Day3 구매 검증이 가능하도록 소액만 보충한다.
+            gm.State.cash += 5000;
+
             // Day3 구매 할증 발생 확인 — 인상 전/후 가격이 달라야 한다. Panel_Market 이 이미 씬에 주입한
             // ingredient 목록을 그대로 쓴다(테스트가 별도 asset 조회 경로를 만들지 않는다).
             gm.TryGetGenre("gukbap", out var genreDef);
