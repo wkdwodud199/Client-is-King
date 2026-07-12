@@ -138,5 +138,18 @@ namespace ClientIsKing.Tests.EditMode
                 Assert.IsFalse(button.interactable, $"{name} 은 파산 상태에서 비활성이어야 한다");
             }
         }
+
+        // ── task-113 U5: 자동 저장 표시 라인(G4) ─────────────────────────────
+        // 저장 성공/실패에 따른 문구·색 전환은 GameManager.LastAutoSave* 값을 그대로 읽는데, 그 값은
+        // AutoSave()(Application.isPlaying 가드)만 갱신하고 EditMode 는 항상 isPlaying==false 이므로
+        // 이 상태 흐름은 재현 불가능하다 — PlayMode(SaveLoadPlayModeTests)가 실제 흐름을 검증한다.
+        // 여기서는 "저장 시도 기록이 없으면(fixture 기본값) 기존 1행만 유지"하는 정적 경우만 확인한다.
+
+        [Test]
+        public void StatusText_Shows_Base_Line_Only_When_No_Save_Attempt_Recorded()
+        {
+            var statusText = nightPanel.Find("StatusText").GetComponent<TMPro.TMP_Text>();
+            Assert.AreEqual("내일 영업 준비 완료 — '다음 날 ▶' 버튼으로 진행하세요.", statusText.text);
+        }
     }
 }

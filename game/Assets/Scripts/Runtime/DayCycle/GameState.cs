@@ -15,8 +15,16 @@ namespace ClientIsKing.DayCycle
     [Serializable]
     public sealed class GameState
     {
+        /// <summary>세이브 스키마 버전 (task-113). 스키마 파괴 변경(필드 추가/삭제/이름·타입 변경,
+        /// enum 멤버 삭제·재정렬 등) 시에만 +1 하고 마이그레이션 훅을 추가한다.</summary>
+        public const int SaveSchemaVersion = 1;
+
         /// <summary>데모 시작 자금 (초안 밸런스 — playtest 조정 대상, task-105 설계 2단계).</summary>
         public const int StartingCash = 30000;
+
+        /// <summary>이 상태의 스키마 버전 — 새 상태는 항상 SaveSchemaVersion (JSON 필드 순서 = 선언 순서,
+        /// 프로브·정규형 검사가 이 필드를 최상단으로 전제한다).</summary>
+        public int schemaVersion = SaveSchemaVersion;
 
         /// <summary>현재 일차 (1부터 시작).</summary>
         public int day = 1;

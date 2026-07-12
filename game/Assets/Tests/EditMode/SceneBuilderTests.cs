@@ -82,6 +82,83 @@ namespace ClientIsKing.Tests.EditMode
             Assert.IsNotNull(canvasGo.transform.Find("Title")?.GetComponent<TMP_Text>(), "Title 누락");
         }
 
+        // ── task-113 U4/U5: 이어하기 블록(G1) 오브젝트·좌표·멱등 ─────────────
+
+        [Test]
+        public void MainMenu_Has_Continue_Block_Objects()
+        {
+            var scene = OpenSingle(SceneBuilder.MainMenuPath);
+            var canvasGo = Root(scene, "Canvas");
+            Assert.IsNotNull(canvasGo, "Canvas 누락");
+
+            Assert.IsNotNull(canvasGo.transform.Find("ContinueButton")?.GetComponent<Button>(), "ContinueButton 누락");
+            Assert.IsNotNull(canvasGo.transform.Find("SaveStatusText")?.GetComponent<TMP_Text>(), "SaveStatusText 누락");
+        }
+
+        [Test]
+        public void MainMenu_Continue_Block_Matches_G1_Coordinates()
+        {
+            var scene = OpenSingle(SceneBuilder.MainMenuPath);
+            var canvasGo = Root(scene, "Canvas");
+
+            var continueRt = (RectTransform)canvasGo.transform.Find("ContinueButton");
+            Assert.AreEqual(0f, continueRt.anchoredPosition.x, 0.01f, "ContinueButton anchoredPosition.x");
+            Assert.AreEqual(-104f, continueRt.anchoredPosition.y, 0.01f, "ContinueButton anchoredPosition.y");
+            Assert.AreEqual(200f, continueRt.sizeDelta.x, 0.01f, "ContinueButton sizeDelta.x");
+            Assert.AreEqual(44f, continueRt.sizeDelta.y, 0.01f, "ContinueButton sizeDelta.y");
+
+            var statusRt = (RectTransform)canvasGo.transform.Find("SaveStatusText");
+            Assert.AreEqual(0f, statusRt.anchoredPosition.x, 0.01f, "SaveStatusText anchoredPosition.x");
+            Assert.AreEqual(-146f, statusRt.anchoredPosition.y, 0.01f, "SaveStatusText anchoredPosition.y");
+            Assert.AreEqual(420f, statusRt.sizeDelta.x, 0.01f, "SaveStatusText sizeDelta.x");
+            Assert.AreEqual(24f, statusRt.sizeDelta.y, 0.01f, "SaveStatusText sizeDelta.y");
+        }
+
+        [Test]
+        public void MainMenu_Continue_Block_Has_Explicit_Vertical_Navigation()
+        {
+            var scene = OpenSingle(SceneBuilder.MainMenuPath);
+            var canvasGo = Root(scene, "Canvas");
+
+            var startButton = canvasGo.transform.Find("StartButton").GetComponent<Button>();
+            var continueButton = canvasGo.transform.Find("ContinueButton").GetComponent<Button>();
+
+            Assert.AreEqual(Navigation.Mode.Explicit, startButton.navigation.mode, "StartButton explicit navigation");
+            Assert.AreSame(continueButton, startButton.navigation.selectOnDown, "게임 시작 → 이어하기 (아래)");
+            Assert.AreSame(startButton, continueButton.navigation.selectOnUp, "이어하기 → 게임 시작 (위)");
+        }
+
+        [Test]
+        public void MainMenu_Has_GameManager_With_ServiceManager_Sibling_For_Save_Catalogs()
+        {
+            var scene = OpenSingle(SceneBuilder.MainMenuPath);
+            var gameManagerGo = Root(scene, "GameManager");
+            Assert.IsNotNull(gameManagerGo, "MainMenu GameManager 누락");
+            Assert.IsNotNull(gameManagerGo.GetComponent<ServiceManager>(), "MainMenu ServiceManager 누락 (save catalog 조립에 필요)");
+        }
+
+        [Test]
+        public void Repeated_Apply_Is_Idempotent_For_MainMenu_Continue_Block()
+        {
+            SceneBuilder.Apply();
+            var firstScene = OpenSingle(SceneBuilder.MainMenuPath);
+            var firstCanvas = Root(firstScene, "Canvas");
+            int firstChildCount = CountAllDescendants(firstCanvas.transform);
+            int firstContinueListeners = firstCanvas.transform.Find("ContinueButton")
+                .GetComponent<Button>().onClick.GetPersistentEventCount();
+
+            SceneBuilder.Apply();
+            var secondScene = OpenSingle(SceneBuilder.MainMenuPath);
+            var secondCanvas = Root(secondScene, "Canvas");
+            int secondChildCount = CountAllDescendants(secondCanvas.transform);
+            int secondContinueListeners = secondCanvas.transform.Find("ContinueButton")
+                .GetComponent<Button>().onClick.GetPersistentEventCount();
+
+            Assert.AreEqual(firstChildCount, secondChildCount, "재실행해도 MainMenu canvas 하위 오브젝트 수가 같아야 한다 (멱등)");
+            Assert.AreEqual(0, firstContinueListeners, "ContinueButton 은 persistent listener 없이 런타임 AddListener 만 사용해야 한다");
+            Assert.AreEqual(0, secondContinueListeners, "재실행 후에도 ContinueButton persistent listener 는 0 이어야 한다");
+        }
+
         [Test]
         public void Shop_Has_PixelPerfect_Camera_With_Brief_Standard()
         {

@@ -37,6 +37,7 @@ namespace ClientIsKing.Settlement
         /// 오늘 정산을 적용한다. 이미 적용된 날이면 기존 재구성 경로(파라미터 무관)를 그대로 쓰고,
         /// 아니면 오늘 이벤트 효과(fx)를 조회해 운영비 배수/가산 overload 로 적용한다(task-112 E3).
         /// fx 조회 실패 시 손상 데이터로 명시적 실패(applied:false)를 반환한다.
+        /// 신규 적용(result.Applied)이 성공하면 자동 저장을 트리거한다(task-113 F2 트리거 3 — 파산 포함).
         /// </summary>
         public SettlementResult ApplyDailySettlement()
         {
@@ -61,7 +62,12 @@ namespace ClientIsKing.Settlement
                 return new SettlementResult(state.day, false, false, state.isBankrupt, 0, 0, 0, 0, 0, 0, 0,
                     reason);
             }
-            return SettlementOps.ApplyDailySettlement(state, fx.OperatingCostMilli, fx.OperatingCostFlat);
+            var result = SettlementOps.ApplyDailySettlement(state, fx.OperatingCostMilli, fx.OperatingCostFlat);
+            if (result.Applied)
+            {
+                gm.AutoSave();
+            }
+            return result;
         }
     }
 }

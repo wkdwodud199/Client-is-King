@@ -62,5 +62,15 @@ namespace ClientIsKing.DayCycle
         {
             SettlementPresented?.Invoke(args);
         }
+
+        /// <summary>저장 시도(성공/실패) 후 정확히 1회 발행된다 (task-113 F2) — 표현 전용, 도메인 규칙은
+        /// 이 이벤트에 의존하지 않는다. 구독자는 GameManager 의 LastAutoSave* 를 읽어 표시만 갱신한다.</summary>
+        public static event Action SaveStateChanged;
+
+        /// <summary>발행은 저장을 시도하는 도메인 경로(GameManager)만 호출한다.</summary>
+        internal static void RaiseSaveStateChanged()
+        {
+            SaveStateChanged?.Invoke();
+        }
     }
 }

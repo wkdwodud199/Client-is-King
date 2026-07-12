@@ -26,6 +26,7 @@
 | task-110 | 장르 선택 시스템 — 국밥/분식/면류/제네럴리스트 전문 분야, 결정론적 수요 예측, 경제/서비스 배수 적용 | 2026-07-11 (커밋 완료 `9265da5`; Codex 코드리뷰·640×360 시각승인·수동 smoke 대기) | [summary](../artifacts/task-110-summary.md) |
 | task-111 | SNS 마케팅 시스템 — 가상 채널 3종(픽쳐그램/숏핑/동네게시판), 익일 손님 수·분포 지연 보상, | 2026-07-11 (Codex 코드리뷰·640×360 시각승인·수동 smoke·오너 비용 재시드 승인 대기) | [summary](../artifacts/task-111-summary.md) |
 | task-112 | 이벤트/장애물 시스템 — 재료값 폭등·위생 점검·임대료 인상·단체 손님 4종, 전날 예고→당일 적용 | 2026-07-11 (Codex 코드리뷰·640×360 시각승인·수동 smoke·오너 시드 재확정 승인 대기) | [summary](../artifacts/task-112-summary.md) |
+| task-113 | 저장/불러오기 — 순수 C# `GameState` → `JsonUtility` 단일 슬롯 자동 저장, 프로브→버전→ | 2026-07-12 (Codex 코드리뷰·640×360 시각승인·수동 smoke 대기) | [summary](../artifacts/task-113-summary.md) |
 <!-- END:generated -->
 
 ## 러너 빠른 참조

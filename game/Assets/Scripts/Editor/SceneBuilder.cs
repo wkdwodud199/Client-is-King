@@ -82,8 +82,19 @@ namespace ClientIsKing.EditorTools
             var startButton = CreateButton(canvasGo.transform, "StartButton", "게임 시작",
                 new Vector2(0f, -50f), new Vector2(200f, 44f));
 
+            // task-113 (U4): 이어하기 블록 (design.md G1 좌표·크기·폰트 고정 — 기존 2종 불변 + 신규 2종).
+            // 문구·색·활성 상태는 controller 의 RefreshSaveUi 가 G2 분기 4종으로 갱신한다.
+            var continueButton = CreateButton(canvasGo.transform, "ContinueButton", "이어하기",
+                new Vector2(0f, -104f), new Vector2(200f, 44f));
+            var saveStatusText = CreateText(canvasGo.transform, "SaveStatusText", "", 10f,
+                new Vector2(0f, -146f), new Vector2(420f, 24f));
+            saveStatusText.color = SteamCream;
+
+            // focus: 상하 explicit navigation — 게임 시작(위) ↔ 이어하기(아래) (G1).
+            LinkVerticalNavigation(startButton, continueButton);
+
             var controller = canvasGo.AddComponent<MainMenuController>();
-            controller.EditorInit(startButton);
+            controller.EditorInit(startButton, continueButton, saveStatusText);
 
             SaveScene(scene, MainMenuPath);
         }
@@ -544,6 +555,21 @@ namespace ClientIsKing.EditorTools
                     mode = Navigation.Mode.Explicit,
                     selectOnLeft = i > 0 ? chain[i - 1] : null,
                     selectOnRight = i < chain.Length - 1 ? chain[i + 1] : null,
+                };
+                chain[i].navigation = navigation;
+            }
+        }
+
+        /// <summary>상하 방향키 focus 체인 — explicit navigation (task-113 G1, MainMenu 세로 배치).</summary>
+        static void LinkVerticalNavigation(params Selectable[] chain)
+        {
+            for (int i = 0; i < chain.Length; i++)
+            {
+                var navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnUp = i > 0 ? chain[i - 1] : null,
+                    selectOnDown = i < chain.Length - 1 ? chain[i + 1] : null,
                 };
                 chain[i].navigation = navigation;
             }

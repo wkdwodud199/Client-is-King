@@ -100,5 +100,48 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreSame(shortForm, photoFeed.navigation.selectOnRight, "픽쳐그램 → 숏핑");
             Assert.AreSame(localBoard, shortForm.navigation.selectOnRight, "숏핑 → 동네게시판");
         }
+
+        // ── task-113 U5: 자동 저장 표시 라인(G4) — 좌표 불변 + worst-case 폭 ──
+
+        [Test]
+        public void StatusText_Coordinates_Unchanged_By_Save_Line_Addition()
+        {
+            // G4: statusText (0,-72)/(460x32)/11pt 그대로 — 저장 라인은 텍스트 내용만 확장한다.
+            var statusText = nightPanel.Find("StatusText");
+            Assert.IsNotNull(statusText, "Panel_Night/StatusText 누락");
+            var rt = (RectTransform)statusText;
+            Assert.AreEqual(0f, rt.anchoredPosition.x, 0.01f, "StatusText anchoredPosition.x");
+            Assert.AreEqual(-72f, rt.anchoredPosition.y, 0.01f, "StatusText anchoredPosition.y");
+            Assert.AreEqual(460f, rt.sizeDelta.x, 0.01f, "StatusText sizeDelta.x");
+            Assert.AreEqual(32f, rt.sizeDelta.y, 0.01f, "StatusText sizeDelta.y");
+        }
+
+        [Test]
+        public void StatusText_WorstCase_AutoSave_Success_Line_Fits_Within_460px()
+        {
+            // 성공 2행: 안내 + `자동 저장됨 · Day {n} {phase}` — phase 라벨 중 가장 긴 것으로 폭 확인.
+            var statusText = nightPanel.Find("StatusText").GetComponent<TMPro.TMP_Text>();
+            string worstLine = "내일 영업 준비 완료 — '다음 날 ▶' 버튼으로 진행하세요.\n자동 저장됨 · Day 99 정산";
+            statusText.text = worstLine;
+            statusText.ForceMeshUpdate();
+            var preferred = statusText.GetPreferredValues(worstLine);
+            Assert.LessOrEqual(preferred.x, 460f, $"자동 저장 성공 라인 worst-case 폭 {preferred.x:F1}px 이 460px 를 초과함: '{worstLine}'");
+        }
+
+        [Test]
+        public void StatusText_WorstCase_AutoSave_Failure_Line_Fits_Within_460px()
+        {
+            // 실패 2행: 안내 + Warning Plum 컬러 태그 포함 `자동 저장 실패: {사유}` — 검증 매트릭스에서
+            // 가장 긴 축에 속하는 사유 문자열로 worst-case 를 구성한다 (I/O 예외 메시지는 환경 의존적이라
+            // 표시 폭 검증의 대표값으로 삼지 않는다 — task-112 F5 전례와 동일 원칙).
+            var statusText = nightPanel.Find("StatusText").GetComponent<TMPro.TMP_Text>();
+            string worstReason = "저장 데이터 검증 실패: 서비스 통계가 주문 목록과 일치하지 않습니다.";
+            string worstLine = "내일 영업 준비 완료 — '다음 날 ▶' 버튼으로 진행하세요.\n" +
+                $"<color=#A93E58>자동 저장 실패: {worstReason}</color>";
+            statusText.text = worstLine;
+            statusText.ForceMeshUpdate();
+            var preferred = statusText.GetPreferredValues(worstLine);
+            Assert.LessOrEqual(preferred.x, 460f, $"자동 저장 실패 라인 worst-case 폭 {preferred.x:F1}px 이 460px 를 초과함: '{worstLine}'");
+        }
     }
 }

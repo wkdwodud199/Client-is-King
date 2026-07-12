@@ -48,23 +48,11 @@ namespace ClientIsKing.Service
 
         static GameState State => GameManager.Instance != null ? GameManager.Instance.State : null;
 
-        /// <summary>
-        /// 오늘(day) 주문 목록이 없거나 이전 day 것이면 새로 생성·초기화한다 (설계 25행).
-        /// 같은 날 재진입(패널 토글)은 기존 진행 상태를 유지한다.
-        /// </summary>
-        public void EnsureServiceDay(IReadOnlyList<RecipeDef> recipes, IReadOnlyList<CustomerArchetypeDef> customers)
-        {
-            var state = State;
-            if (state == null)
-            {
-                return;
-            }
-            if (state.serviceDay != state.day)
-            {
-                var orders = ServiceOps.BuildOrders(recipes, customers, state.day);
-                ServiceOps.StartServiceDay(state, orders, state.day);
-            }
-        }
+        // EnsureServiceDay(recipes, customers) legacy 경로는 task-113 F3 에서 제거되었다 — 호출자 0건
+        // (task-111 오픈 이슈 이행). plan 을 거치지 않는 주문 재생성이 재개된 상태에서 호출되면
+        // 장르/SNS/이벤트가 반영되지 않은 주문으로 serviceOrders 를 덮어써 C3(재개 동일 주문) 계약을
+        // 조용히 깨는 유일한 잔존 경로였다. neutral BuildOrders(recipes, customers, day) 3-인자
+        // 오버로드 자체는 순수 계층 하위호환으로 ServiceOps 에 그대로 남는다.
 
         /// <summary>
         /// 선택된 장르로 오늘의 GenreDemandPlan 을 순수 검증만으로 생성한다 (state 를 바꾸지 않음).

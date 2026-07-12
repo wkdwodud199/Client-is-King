@@ -48,6 +48,7 @@ namespace ClientIsKing.UI
             if (shortFormButton != null) shortFormButton.onClick.AddListener(OnExecuteShortForm);
             if (localBoardButton != null) localBoardButton.onClick.AddListener(OnExecuteLocalBoard);
             GameEvents.SNSCampaignExecuted += OnSnsCampaignExecuted;
+            GameEvents.SaveStateChanged += OnSaveStateChanged;
             Render();
             FocusFirst();
         }
@@ -58,6 +59,7 @@ namespace ClientIsKing.UI
             if (shortFormButton != null) shortFormButton.onClick.RemoveListener(OnExecuteShortForm);
             if (localBoardButton != null) localBoardButton.onClick.RemoveListener(OnExecuteLocalBoard);
             GameEvents.SNSCampaignExecuted -= OnSnsCampaignExecuted;
+            GameEvents.SaveStateChanged -= OnSaveStateChanged;
         }
 
         private void Update()
@@ -123,6 +125,18 @@ namespace ClientIsKing.UI
             Render();
         }
 
+        private void OnSaveStateChanged()
+        {
+            // task-113 G4: Night 진입 저장이 패널 첫 Render 이후 완료되는 순서 문제를 구독으로 해소 —
+            // 상태 라인만 갱신한다 (LastAutoSave* 표시 전용, 도메인 규칙은 이 이벤트에 의존하지 않는다).
+            var gm = GameManager.Instance;
+            var state = gm != null ? gm.State : null;
+            if (state != null)
+            {
+                RenderStatusLine(state);
+            }
+        }
+
         private void Render()
         {
             var gm = GameManager.Instance;
@@ -140,12 +154,7 @@ namespace ClientIsKing.UI
             {
                 daysText.text = $"완료 일수 {state.daysCompleted}일";
             }
-            if (statusText != null)
-            {
-                statusText.text = state.isBankrupt
-                    ? $"파산 — 게임 오버 (버틴 일수 {state.daysCompleted}일)\n{state.bankruptcyReason}"
-                    : "내일 영업 준비 완료 — '다음 날 ▶' 버튼으로 진행하세요.";
-            }
+            RenderStatusLine(state);
 
             // ── SNS 블록 (미배선 fixture 는 no-op) ──────────────────────────
             if (followerText != null)
@@ -168,6 +177,37 @@ namespace ClientIsKing.UI
             RenderCampaignButton(shortFormButton, SNSCampaignCopy.ShortFormId, tonight);
             RenderCampaignButton(localBoardButton, SNSCampaignCopy.LocalBoardId, tonight);
             RenderInfoLine(state, tonight, forecast);
+        }
+
+        /// <summary>
+        /// 상태 라인 (task-113 G4) — 비파산 분기를 2행으로 확장: 진행 안내 + 자동 저장 표시.
+        /// 성공 `자동 저장됨 · Day {n} {phase}` / 실패 Warning Plum `자동 저장 실패: {사유}` —
+        /// GameManager 의 LastAutoSave* 표시 전용 (재계산 금지). 저장 시도 기록이 없으면
+        /// (EditMode fixture 등 LastAutoSaveDay 0) 기존 1행을 유지한다. 파산 분기는 불변.
+        /// </summary>
+        private void RenderStatusLine(GameState state)
+        {
+            if (statusText == null)
+            {
+                return;
+            }
+            if (state.isBankrupt)
+            {
+                statusText.text =
+                    $"파산 — 게임 오버 (버틴 일수 {state.daysCompleted}일)\n{state.bankruptcyReason}";
+                return;
+            }
+            string text = "내일 영업 준비 완료 — '다음 날 ▶' 버튼으로 진행하세요.";
+            var gm = GameManager.Instance;
+            if (gm != null && !string.IsNullOrEmpty(gm.LastAutoSaveFailReason))
+            {
+                text += $"\n<color={SNSCampaignCopy.WarningPlumHex}>자동 저장 실패: {gm.LastAutoSaveFailReason}</color>";
+            }
+            else if (gm != null && gm.LastAutoSaveDay >= 1)
+            {
+                text += $"\n자동 저장됨 · Day {gm.LastAutoSaveDay} {PhaseHudController.PhaseLabel(gm.LastAutoSavePhase)}";
+            }
+            statusText.text = text;
         }
 
         /// <summary>
