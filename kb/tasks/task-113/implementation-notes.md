@@ -157,7 +157,10 @@
 - **Codex 코드 리뷰**: `design-review-codex.md`(request-changes) 3건 Action(V11 주문 identity 강화·
   V1~V10 non-null 완전성·B1 schemaVersion 정책 RT2 일관화)은 design.md 확정판에 이미 반영되어
   있었고, 이 구현은 그 확정판을 그대로 따랐다(U1~U6 전 구간에서 Action 3건 모두 코드/테스트로
-  재확인). 이 구현 자체(U1~U6 diff)에 대한 Codex 코드 리뷰는 **대기**.
+  재확인). 이 구현 자체(U1~U6 diff)에 대한 Codex 코드 리뷰는 **보류** — `codex-review.sh task-113`을
+  3회(560s/595s/600s) 시도했으나 U1~U6 diff가 커서 codex 분석+작성이 tool 600초 한도를 초과해 리뷰
+  파일 미생성(크래시 아님, apply patch 직전 타임아웃). 설계 리뷰 3건은 이미 반영·구현 준수, 독립
+  검증 EditMode 428/PlayMode 8 통과 상태. 재시도 또는 수동 diff 검토 가능(오너 판단).
 - **640×360 원본 캡처 시각 승인**: MainMenu 이어하기 블록(ContinueButton/SaveStatusText)·Night
   저장 표시 라인이 겹침·이탈 없이 좌표·폰트·카피와 일치하는지 — 자동 테스트는 오브젝트 존재/좌표값/
   worst-case 폭까지 확인했지만 실제 렌더 결과의 시각적 검토는 하지 않았다. **대기**.
