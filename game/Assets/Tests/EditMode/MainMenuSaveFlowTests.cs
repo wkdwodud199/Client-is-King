@@ -262,6 +262,50 @@ namespace ClientIsKing.Tests.EditMode
             Assert.AreSame(stateBefore, gm.State, "손상 표시는 조용한 새 게임 진행 없이 현재 state 를 그대로 유지해야 한다");
         }
 
+        [Test]
+        public void RefreshSaveUi_Shows_Normal_Branch_For_DayN_Save_When_Runtime_State_Diverges()
+        {
+            // 회귀 방지 — Codex 코드리뷰 002: V11 이 거치는 ServiceManager.TryBuildDayPlan 은 파라미터가
+            // 아니라 ServiceManager.State(=GameManager.Instance.State, 전역 설치된 state)로 계획을
+            // 재생성한다. peek 이 loaded 를 설치하지 않은 채 V11 을 돌리면, 콜드 스타트 MainMenu(런타임
+            // state 가 Day 1 Market 로 세이브와 다른 상황)에서 Day N(N>1) 정상 세이브를 열 때 계획이
+            // 런타임의 Day 1 기준으로 재생성돼 세이브의 Day N 주문과 항상 불일치 → 정상 세이브가 "손상"
+            // 으로 잘못 표시되고 이어하기가 잠기는 버그가 있었다.
+            const int targetDay = 3;
+            var (gmGo, controller, continueButton, saveStatusText) = OpenMainMenu();
+            var gm = gmGo.GetComponent<GameManager>();
+            gm.StartNewGame();
+            var genreIds = gm.GenreCatalog.Select(g => g.Id).ToList();
+            var selection = ClientIsKing.Genre.GenreSelectionOps.TrySelect(gm.State, "generalist", genreIds);
+            Assert.IsTrue(selection.Success, selection.Message);
+            gm.State.day = targetDay; // TryBuildDayPlan/StartServiceDay 가 state.day 를 시드로 쓴다
+            Assert.AreEqual(ClientIsKing.DayCycle.DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(targetDay, gm.State.serviceDay, "픽스처 전제: serviceDay==day 라야 V11 재생성 비교 대상이다");
+            Assert.Greater(gm.State.serviceOrders.Count, 0, "픽스처 전제: 최소 1건의 주문이 있어야 한다");
+
+            var service = ClientIsKing.Service.ServiceManager.Instance;
+            while (gm.State.serviceOrders.Any(o => o.IsOpen))
+            {
+                service.SkipCurrentOrder();
+            }
+            gm.State.currentPhase = ClientIsKing.DayCycle.DayPhase.Settlement;
+            gm.State.settlementDay = targetDay;
+            gm.State.daysCompleted = targetDay; // settledToday(=targetDay) 인 정상 세이브의 V3 불변식
+            gm.State.cash = 9999;
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            gm.StartNewGame(); // 런타임 state 를 세이브와 다르게 발산(Day 1·Market·장르 없음)
+            Assert.AreEqual(1, gm.State.day, "픽스처 전제: StartNewGame 은 Day 1 로 되돌아간다");
+
+            TestSceneSupport.ForceStart(controller);
+
+            Assert.IsTrue(continueButton.interactable,
+                "런타임이 발산된 상태에서도 Day N 정상 세이브는 이어하기가 활성이어야 한다");
+            StringAssert.Contains($"Day {targetDay}", saveStatusText.text);
+            StringAssert.Contains("9,999", saveStatusText.text);
+            AssertColor(saveStatusText, 0xF4, 0xE5, 0xC2); // Steam Cream
+        }
+
         // ── 클릭 흐름 ────────────────────────────────────────────────────────
 
         [Test]

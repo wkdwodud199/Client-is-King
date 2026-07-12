@@ -250,6 +250,86 @@ namespace ClientIsKing.Tests.EditMode
         }
 
         [Test]
+        public void TryPeekSave_Succeeds_For_Valid_DayN_Save_When_Runtime_State_Diverges()
+        {
+            // 회귀 방지 — Codex 코드리뷰 002: V11(TryValidateOrderIdentity)이 거치는
+            // ServiceManager.TryBuildDayPlan 은 파라미터가 아니라 ServiceManager.State(=
+            // GameManager.Instance.State, 전역 설치된 state)로 계획을 재생성한다. peek 이 loaded 를
+            // 설치하지 않은 채 V11 을 돌리면, 콜드 스타트 MainMenu(런타임 state 가 Day 1 Market 로
+            // 세이브와 다른 상황)에서 Day N(serviceDay==day, N>1) 정상 세이브를 peek 할 때 계획이 런타임의
+            // Day 1 기준으로 재생성돼 세이브의 Day N 주문과 항상 불일치 → 정상 세이브가 손상으로
+            // 잘못 잠기는 버그가 있었다(peek 이 loaded 를 설치하지 않고 V11 을 돌렸기 때문).
+            const int targetDay = 3;
+            var gm = OpenGameManager();
+            SelectGenre(gm, "generalist"); // 장르 선택은 Day 1 에만 허용
+            gm.State.day = targetDay; // TryBuildDayPlan/StartServiceDay 가 state.day 를 시드로 쓴다
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase());
+            Assert.AreEqual(targetDay, gm.State.serviceDay, "픽스처 전제: serviceDay==day 라야 V11 재생성 비교 대상이다");
+            Assert.Greater(gm.State.serviceOrders.Count, 0, "픽스처 전제: 최소 1건의 주문이 있어야 한다");
+
+            var service = ServiceManager.Instance;
+            while (gm.State.serviceOrders.Any(o => o.IsOpen))
+            {
+                service.SkipCurrentOrder();
+            }
+            gm.State.currentPhase = DayPhase.Settlement;
+            gm.State.settlementDay = targetDay;
+            gm.State.daysCompleted = targetDay; // settledToday(=targetDay) 인 정상 세이브의 V3 불변식
+            gm.State.cash = 7777;
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            gm.StartNewGame(); // 런타임 state 를 세이브와 다르게 발산(Day 1·Market·장르 없음)
+            Assert.AreEqual(1, gm.State.day, "픽스처 전제: StartNewGame 은 Day 1 로 되돌아간다");
+            Assert.AreEqual(DayPhase.Market, gm.State.currentPhase, "픽스처 전제: StartNewGame 은 Market 로 되돌아간다");
+            Assert.AreEqual("", gm.State.selectedGenreId, "픽스처 전제: 런타임은 장르 미선택으로 발산해야 한다");
+
+            bool ok = gm.TryPeekSave(out var summary, out var reason);
+            Assert.IsTrue(ok, reason);
+            Assert.IsNotNull(summary);
+            Assert.AreEqual(targetDay, summary.Day);
+            Assert.AreEqual(7777, summary.Cash);
+            Assert.AreEqual(1, gm.State.day, "peek 은 런타임 state 를 원상복구해야 한다(발산된 상태 그대로)");
+        }
+
+        [Test]
+        public void TryPeekSave_Fails_For_Tampered_DayN_Save_When_Runtime_State_Diverges()
+        {
+            // 위 테스트의 변조 대응판 — 임시 설치 수정이 검증 자체를 무력화하지 않았는지 확인한다
+            // (loaded 설치는 V11 "재생성"만 올바르게 만들 뿐, tamper 는 여전히 잡아야 한다).
+            const int targetDay = 3;
+            var gm = OpenGameManager();
+            SelectGenre(gm, "generalist");
+            gm.State.day = targetDay;
+            Assert.AreEqual(DayPhase.Service, gm.AdvancePhase());
+            Assert.Greater(gm.State.serviceOrders.Count, 0, "픽스처 전제: 최소 1건의 주문이 있어야 한다");
+            var otherRecipeId = FindDifferentRecipeId(gm.State.serviceOrders[0].recipeId);
+
+            var service = ServiceManager.Instance;
+            while (gm.State.serviceOrders.Any(o => o.IsOpen))
+            {
+                service.SkipCurrentOrder();
+            }
+            gm.State.currentPhase = DayPhase.Settlement;
+            gm.State.settlementDay = targetDay;
+            gm.State.daysCompleted = targetDay; // settledToday(=targetDay) 인 정상 세이브의 V3 불변식
+            Assert.IsTrue(gm.SaveGame(out var saveReason), saveReason);
+
+            string json = File.ReadAllText(GameManager.SaveFilePathOverride);
+            string tampered = json.Replace(
+                $"\"recipeId\": \"{gm.State.serviceOrders[0].recipeId}\"",
+                $"\"recipeId\": \"{otherRecipeId}\"");
+            Assert.AreNotEqual(json, tampered, "치환이 실제로 발생해야 테스트가 유효하다");
+            File.WriteAllText(GameManager.SaveFilePathOverride, tampered);
+
+            gm.StartNewGame(); // 런타임 state 를 세이브와 다르게 발산
+
+            bool ok = gm.TryPeekSave(out var summary, out var reason);
+            Assert.IsFalse(ok, "런타임이 발산된 상태에서도 V11 변조는 여전히 peek 실패로 잠가야 한다");
+            Assert.IsNull(summary);
+            StringAssert.Contains("저장된 주문이 수요 계획과 일치하지 않습니다", reason);
+        }
+
+        [Test]
         public void TryLoadGame_Rolls_Back_When_No_Recipe_Matches_Selected_Genre()
         {
             // 장르 자체는 GenreCatalog(V5 검증 대상)에 그대로 남아 있어야 V11(plan 재구성)만 격리해서

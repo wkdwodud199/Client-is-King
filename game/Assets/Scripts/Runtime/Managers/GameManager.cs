@@ -502,6 +502,11 @@ namespace ClientIsKing.Managers
         /// <summary>
         /// 저장 파일을 dry-run 으로 읽어 요약을 만든다 — TryLoadGame 과 동일하게 V11(주문 identity)
         /// 까지 포함한 검증을 거치며, 성공/실패 관계없이 상태를 원상복구한다(관찰 가능한 부작용 0).
+        /// V11(<see cref="TryValidateOrderIdentity"/>) 은 ServiceManager.TryBuildDayPlan 을 거치는데
+        /// 이 경로는 파라미터가 아니라 ServiceManager.State(=GameManager.Instance.State, 전역 설치된
+        /// 상태)로 계획을 재생성한다 — 검증 "동안"만 loaded 를 임시 설치해야 콜드 스타트 MainMenu(런타임
+        /// state 가 세이브와 다른 Day/장르)에서도 세이브 자신의 날짜 기준으로 올바르게 재검증된다
+        /// (Codex 리뷰 002 — TryLoadGame 미러, 성공/실패 무관하게 원복).
         /// </summary>
         public bool TryPeekSave(out SaveSummary summary, out string failReason)
         {
@@ -510,14 +515,20 @@ namespace ClientIsKing.Managers
             var prevMachine = machine;
 
             bool ok = TryLoadInternal(out var loaded, out failReason);
+            if (!ok)
+            {
+                state = prevState;
+                machine = prevMachine;
+                return false;
+            }
+
+            state = loaded;
+            machine = new DayPhaseMachine(loaded);
+            bool identityOk = TryValidateOrderIdentity(loaded, out failReason);
             state = prevState;
             machine = prevMachine;
 
-            if (!ok)
-            {
-                return false;
-            }
-            if (!TryValidateOrderIdentity(loaded, out failReason))
+            if (!identityOk)
             {
                 return false;
             }

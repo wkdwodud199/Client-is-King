@@ -167,9 +167,18 @@
   - 부수 발견·수정: task-115 D3 클리어 픽스처(`RefreshSaveUi_Shows_Cleared_Branch...`)가 serviceDay==day
     인데 serviceOrders 미충전인 불가능 상태를 손으로 세팅했고, peek 의 V11 생략 버그가 이를 가려주고
     있었다 → 실제 게임 흐름(장르선택→Service 진입→주문 처리→Settlement)으로 픽스처 재구성.
-  - 독립 재검증: **EditMode 491/491 · PlayMode 9/9**(기준선은 task-115 시점 486→491, +5 신규).
-    설계 리뷰 3건(V11 강화·V1~V10 non-null·schemaVersion 정책)은 원래대로 반영 유지. 재리뷰로 approved
-    확인 예정(reviews/002.md).
+  - **2차 리뷰(reviews/002.md, request-changes) — 위 1차 수정이 불완전함을 발견**: `TryValidateOrderIdentity`
+    내부 `ServiceManager.TryBuildDayPlan` 이 파라미터가 아니라 `ServiceManager.State`(= 전역
+    `GameManager.Instance.State`)로 계획을 재생성한다(ServiceManager.cs:66/85/98/109). `TryLoadGame` 은
+    loaded 를 설치한 뒤 검증해 우연히 맞지만, `TryPeekSave` 는 미설치라 콜드 스타트 MainMenu(Day 1)에서
+    Day 2+ **정상** 세이브가 손상으로 잠기는 회귀. 1차 테스트는 저장 직후 같은 상태로 peek 해서 못 잡음.
+  - **2차 수정 (커밋 예정)**: `TryPeekSave` 가 V11 검증 "동안"만 loaded 를 임시 설치(state/machine)하고
+    성공/실패 무관하게 원복(TryLoadGame 미러 — 부작용 0). 회귀 테스트 +3: 런타임 state 를 `StartNewGame()`
+    으로 발산시킨 뒤 유효 Day-N peek 성공 + MainMenu 이어하기 활성 / 변조본은 잠금 유지. **임시 설치 없이는
+    이 3건이 FAIL 함을 확인**(정상 세이브 잠김 재현).
+  - 독립 재검증(2차 수정 후): **EditMode 494/494 · PlayMode 9/9**(486→491→494, 누적 +8 신규).
+    설계 리뷰 3건(V11 강화·V1~V10 non-null·schemaVersion 정책)은 원래대로 유지. V11 비교 로직·`TryLoadGame`
+    무변경. 3차 재리뷰로 approved 확인 예정(reviews/003.md).
 - **640×360 원본 캡처 시각 승인**: MainMenu 이어하기 블록(ContinueButton/SaveStatusText)·Night
   저장 표시 라인이 겹침·이탈 없이 좌표·폰트·카피와 일치하는지 — 자동 테스트는 오브젝트 존재/좌표값/
   worst-case 폭까지 확인했지만 실제 렌더 결과의 시각적 검토는 하지 않았다. **대기**.
