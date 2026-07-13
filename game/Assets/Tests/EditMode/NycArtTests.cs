@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using ClientIsKing.EditorTools;
 using NUnit.Framework;
 using UnityEditor;
@@ -31,6 +32,29 @@ namespace ClientIsKing.Tests.EditMode
             "visual-north-star.png", "protagonist.png", "customers.png",
             "food.png", "ui-icons.png", "foodtruck-environment.png",
         };
+
+        // design.md D절 Asset Map 을 NycArtContract 와 독립적으로 리터럴 고정한다(Root 하위 상대경로 32종).
+        // 구현이 경로를 중복/누락해도(예: 한 경로 dup + 한 경로 omit → count 여전히 32) 이 집합 대조가 잡는다.
+        static readonly string[] ExpectedRelativePaths = BuildExpectedRelativePaths();
+
+        static string[] BuildExpectedRelativePaths()
+        {
+            var list = new List<string>();
+            foreach (var c in new[] { "student", "office_worker", "family_parent", "senior_regular" })
+            {
+                list.Add($"Customers/{c}.png");
+                for (int f = 0; f < 4; f++) list.Add($"Customers/{c}_walk{f}.png");
+            }
+            foreach (var f in new[] { "pork_gukbap", "beef_gukbap", "janchi_guksu", "bibim_guksu", "tteokbokki", "gimbap" })
+                list.Add($"FoodIcons/{f}.png");
+            foreach (var g in new[] { "gukbap", "bunsik", "noodles", "generalist" })
+                list.Add($"UiIcons/genre_{g}.png");
+            list.Add("Stage/backdrop.png");
+            list.Add("Stage/counter.png");
+            return list.ToArray();
+        }
+
+        static string RelativePath(string assetPath) => assetPath.Substring(NycArtContract.Root.Length + 1);
 
         static NycSpec SpecFor(string assetPath)
         {
@@ -69,16 +93,19 @@ namespace ClientIsKing.Tests.EditMode
         [Test]
         public void All_32_Sprites_Exist_With_Meta_Pair()
         {
-            int count = 0;
-            foreach (var path in NycArtContract.AllSpritePaths())
+            var paths = NycArtContract.AllSpritePaths().ToList();
+            // Asset Map 이 design D 리터럴 집합과 정확히 일치 + 전부 distinct (dup+omit → count 32 위장 방어).
+            Assert.AreEqual(32, paths.Distinct().Count(), "32개 경로가 전부 distinct");
+            CollectionAssert.AreEquivalent(ExpectedRelativePaths, paths.Select(RelativePath).ToList(),
+                "Asset Map 이 design D 리터럴 32경로 집합과 일치해야 한다");
+
+            foreach (var path in paths)
             {
                 Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<Sprite>(path), $"{path}: Sprite 로드 실패");
                 string metaFull = Path.GetFullPath(path) + ".meta";
                 Assert.IsTrue(File.Exists(metaFull), $"{path}: .meta 쌍 누락");
-                count++;
             }
-            // 손님 20 + 음식 6 + 장르 4 + 무대 2 = 32
-            Assert.AreEqual(32, count, "배치 1 = 32파일");
+            Assert.AreEqual(32, paths.Count, "배치 1 = 32파일");
         }
 
         // ── H2: 규격 정확 일치 (E절 확정치, 임포트 무관 원본 디코드) ──
@@ -200,8 +227,9 @@ namespace ClientIsKing.Tests.EditMode
             string doc = File.ReadAllText(provFull);
             foreach (var path in NycArtContract.AllSpritePaths())
             {
-                string fileName = Path.GetFileName(path);
-                StringAssert.Contains(fileName, doc, $"provenance 에 {fileName} 기록 누락");
+                // 상대경로(예: Customers/student.png)로 대조 — bare 파일명보다 강하게 파일별 커버리지를 고정.
+                string rel = RelativePath(path);
+                StringAssert.Contains(rel, doc, $"provenance 에 상대경로 {rel} 기록 누락");
             }
             // C절 필수 필드 라벨
             foreach (var field in new[] { "생성 도구", "생성일", "참조 콘셉트", "후처리", "승인" })
@@ -218,14 +246,19 @@ namespace ClientIsKing.Tests.EditMode
         {
             string repoRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
             string dir = Path.Combine(repoRoot, "kb", "concepts", "art-originals");
-            string pinDoc = File.ReadAllText(Path.Combine(dir, "PROVENANCE.md"));
+            string[] lines = File.ReadAllLines(Path.Combine(dir, "PROVENANCE.md"));
             foreach (var name in ConceptOriginals)
             {
                 string full = Path.Combine(dir, name);
                 Assert.IsTrue(File.Exists(full), $"콘셉트 원본 {name} 누락");
-                string md5 = Md5Hex(full);
-                StringAssert.Contains(md5, pinDoc,
-                    $"{name}: 실제 md5 {md5} 가 PROVENANCE.md 핀과 불일치 (콘셉트 원본 변조 의심)");
+
+                // 파일명과 md5 핀이 같은 표 행에 있음을 이용해 핀을 이 파일에 바인딩한다 —
+                // 문서 아무 곳에나 md5 가 존재하는 것으론 통과 못 함(두 원본 스왑 방어, design H8).
+                string pinRow = lines.FirstOrDefault(l => l.Contains(name) && Regex.IsMatch(l, @"\b[0-9a-f]{32}\b"));
+                Assert.IsNotNull(pinRow, $"{name}: PROVENANCE.md 에 md5 핀 행이 없음");
+                string pin = Regex.Match(pinRow, @"\b[0-9a-f]{32}\b").Value;
+                Assert.AreEqual(pin, Md5Hex(full),
+                    $"{name}: 실제 md5 가 자기 행의 핀과 불일치 (콘셉트 원본 변조/스왑 의심)");
             }
         }
 
