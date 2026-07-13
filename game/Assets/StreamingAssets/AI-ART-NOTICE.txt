@@ -1,0 +1,29 @@
+Client is King — AI-Assisted Art Notice
+========================================
+
+[한국어]
+Client is King의 NYC 코리아타운 배경, 캐릭터, 음식 및 UI 아이콘 일부는 프로젝트 오너가
+승인한 비주얼 콘셉트를 바탕으로 OpenAI의 Codex 내 이미지 생성 도구를 사용해 사전 생성하고,
+프로젝트 팀이 방향을 정하고 선택·검수·통합한 AI 보조 아트입니다. 정확한 백엔드 모델
+식별자는 도구에서 노출되지 않아 추정하여 표기하지 않습니다. 게임 실행 중에는 생성형 AI
+또는 외부 AI 서비스를 사용하지 않습니다.
+
+라이선스: 코드는 MIT, 프로젝트 고유 아트(AI 보조 아트 포함)는 MIT 적용 제외이며 CC0가
+아닙니다. 별도의 재사용·재배포·2차 저작물 작성 허가는 부여되지 않습니다. AI 요소의 저작권
+성립과 보호 범위는 관할권에 따라 달라질 수 있으며, 독점성·고유성·비침해성은 보증하지
+않습니다.
+
+[English]
+Some NYC Koreatown backgrounds, characters, food art, and UI icons in Client is King are
+pre-generated, AI-assisted artwork created with OpenAI image generation through Codex from the
+owner-approved visual concepts, then directed, selected, reviewed, and integrated by the
+project team. The exact backend model identifier is not exposed by the tool and is therefore
+not guessed. No generative AI or external AI service runs while the game is being played.
+
+License: code is MIT; project-unique art (including AI-assisted art) is excluded from MIT and
+is not CC0. No separate permission to reuse, redistribute, or create derivative works is granted.
+Copyright subsistence and scope of protection for AI elements may vary by jurisdiction; no
+exclusivity, originality, or non-infringement is warranted.
+
+See THIRD-PARTY-NOTICES. The MIT code license and the OFL font license texts are bundled under
+StreamingAssets/Licenses/. (Placeholder art is CC0 and is attributed in PLACEHOLDER-PROVENANCE.)

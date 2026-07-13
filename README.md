@@ -157,4 +157,16 @@ flowchart TD
 
 ## License
 
-MIT
+이 저장소는 **코드**와 **프로젝트 고유 아트**에 서로 다른 조건이 적용됩니다.
+
+- **코드**: [MIT License](./LICENSE) (© 2026 P0t4t0).
+- **프로젝트 고유 아트** (AI 보조 콘셉트 원본 `kb/concepts/art-originals/**`; NYC 런타임 아트 `game/Assets/Art/NYC/**`는 아직 미포함 — 향후 task-116에서 추가 예정): **MIT 적용 제외.** 프로젝트 오너는 별도의 재사용·재배포·2차 저작물 작성 허가를 부여하지 않습니다. AI 요소의 저작권 성립과 보호 범위는 관할권에 따라 달라질 수 있으며, 독점성·고유성·비침해성은 보증하지 않습니다. **CC0 아님.**
+- **플레이스홀더 아트**: 각 원본 팩의 **CC0 1.0** — 출처는 [PLACEHOLDER-PROVENANCE](game/Assets/Art/Placeholders/PLACEHOLDER-PROVENANCE.md)에 명시(CC0는 표기 의무가 없어 전문은 번들하지 않음).
+- **폰트**: Galmuri11 — **SIL Open Font License 1.1**.
+- **서드파티 고지**: [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md). 코드 MIT·폰트 OFL 전문과 서드파티 고지는 게임 빌드의 `StreamingAssets/Licenses/`에 동봉됩니다.
+
+### AI 보조 아트 고지
+
+Client is King의 NYC 코리아타운 배경, 캐릭터, 음식 및 UI 아이콘 일부는 프로젝트 오너가 승인한 비주얼 콘셉트를 바탕으로 OpenAI의 Codex 내 이미지 생성 도구를 사용해 사전 생성하고, 프로젝트 팀이 방향을 정하고 선택·검수·통합한 AI 보조 아트입니다. 정확한 백엔드 모델 식별자는 도구에서 노출되지 않아 추정하여 표기하지 않습니다. 게임 실행 중에는 생성형 AI 또는 외부 AI 서비스를 사용하지 않습니다.
+
+(English: see [README.en.md](./README.en.md#license).)

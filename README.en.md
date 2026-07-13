@@ -157,4 +157,14 @@ perform the update" (the doc ends with an agent-oriented procedure).
 
 ## License
 
-MIT
+This repository applies different terms to **code** and to **project-unique art**.
+
+- **Code**: [MIT License](./LICENSE) (© 2026 P0t4t0).
+- **Project-unique art** (AI-assisted concept originals `kb/concepts/art-originals/**`; NYC runtime art `game/Assets/Art/NYC/**` is not yet included — planned for task-116): **excluded from MIT.** The project owner grants no separate permission to reuse, redistribute, or create derivative works. Copyright subsistence and scope of protection for AI-generated or AI-assisted elements may vary by jurisdiction; no exclusivity, originality, or non-infringement is warranted. **Not CC0.**
+- **Placeholder art**: **CC0 1.0** per each source pack — attributed in [PLACEHOLDER-PROVENANCE](game/Assets/Art/Placeholders/PLACEHOLDER-PROVENANCE.md) (CC0 requires no notice, so full texts are not bundled).
+- **Font**: Galmuri11 — **SIL Open Font License 1.1**.
+- **Third-party notices**: [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md). The MIT code license, the OFL font license text, and third-party notices are bundled in the game build under `StreamingAssets/Licenses/`.
+
+### AI-assisted art notice
+
+Some NYC Koreatown backgrounds, characters, food art, and UI icons in Client is King are pre-generated, AI-assisted artwork created with OpenAI image generation through Codex from the owner-approved visual concepts, then directed, selected, reviewed, and integrated by the project team. The exact backend model identifier is not exposed by the tool and is therefore not guessed. No generative AI or external AI service runs while the game is being played.
