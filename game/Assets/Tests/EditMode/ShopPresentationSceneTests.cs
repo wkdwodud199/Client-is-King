@@ -16,6 +16,8 @@ namespace ClientIsKing.Tests.EditMode
         Transform canvas;
         Transform stage;
         ShopPresentationController controller;
+        // 저작 직후(다른 테스트가 HandleOrderPresented 로 활성화하기 전) 스냅샷 — 실행 순서 무관 검증용.
+        bool customerSpriteInitialActiveSelf;
 
         [OneTimeSetUp]
         public void BuildAndOpen()
@@ -28,6 +30,12 @@ namespace ClientIsKing.Tests.EditMode
             stage = canvas.Find("ShopStage");
             Assert.IsNotNull(stage, "ShopStage 누락");
             controller = stage.GetComponent<ShopPresentationController>();
+
+            // task-116 U4: 씬 저작 직후 CustomerSprite 초기 활성 상태를 여기서 확정 캡처한다. 이후 어떤 테스트가
+            // 손님을 활성화하더라도(HandleOrderPresented) 이 스냅샷은 불변이므로 초기 inactive 검증이 순서에 안 흔들린다.
+            var customerAtSetup = stage.Find("CustomerSprite");
+            Assert.IsNotNull(customerAtSetup, "CustomerSprite 누락");
+            customerSpriteInitialActiveSelf = customerAtSetup.gameObject.activeSelf;
         }
 
         [Test]
@@ -52,9 +60,8 @@ namespace ClientIsKing.Tests.EditMode
             // task-116 U4(오너 시각 게이트): 무주문 초기 상태에서 CustomerSprite 는 비활성이어야 한다 —
             // 저작된 씬에 빈 손님 스프라이트가 노출되면 안 된다. 런타임 입장(활성)/퇴장(비활성)은
             // ShopPresentationController(HandleOrderPresented / HideCustomer)가 담당한다.
-            var customer = stage.Find("CustomerSprite");
-            Assert.IsNotNull(customer, "CustomerSprite 누락");
-            Assert.IsFalse(customer.gameObject.activeSelf,
+            // OneTimeSetUp 스냅샷으로 검증 — 다른 테스트가 손님을 활성화해도 영향 없음(실행 순서 무관).
+            Assert.IsFalse(customerSpriteInitialActiveSelf,
                 "CustomerSprite 는 씬 저작 시 inactive 여야 한다 (주문 발생 시 controller 가 활성화)");
         }
 

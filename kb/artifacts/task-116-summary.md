@@ -3,13 +3,13 @@
 > Status: in-progress
 > Inputs: kb/tasks/task-116/{design.md, implementation-notes.md, sprite-production-spec.md}, kb/concepts/art-originals/PROVENANCE.md(md5 핀), 오너/Codex 전달 NYC 스프라이트 패키지(full-01 — Codex 시각 재검수에서 반려됨, full-02 대기)
 > Outputs: 이 요약 — NYC 런타임 아트 오버홀 U0~U4 구현·기계 검증 요약과 인계 (U2 자산 수입·U3 씬 전환·U4 CustomerSprite inactive 수정)
-> Next step: **오너 시각 게이트 REJECTED (2026-07-14). 실제 오너/Codex 승인 전 done 금지 — Status in-progress 유지. (1) full-01 아트 Codex 시각 재검수 반려 → full-02 입력 대기(Claude PNG 미수정). (2) 화면 구성(16:9 고정 뷰포트/레터박스·장르 4카드 상시표시·거대 크림패널 제거·NYC 배경 충분 노출)은 별도 task-118 설계(CanvasScaler/UI 임의 개편 금지). (3) 640×360 고정 캡처 4종(원본+nearest 2×)은 full-02+task-118 이후 제출.**
+> Next step: **오너 시각 게이트 REJECTED (2026-07-14). 실제 오너/Codex 승인 전 done 금지 — Status in-progress 유지. 오너 확정 순서: (1) task-118 UI·뷰포트 설계 확정(Codex) → (2) 기존 자산으로 640×360 합성 검증 → (3) HUD·무대·장르카드·팝업 좌표+안전영역 동결 → (4) 그 규격대로 full-02 재생산 → (5) Claude 통합 후 640×360 캡처 4종(원본+nearest 2×) 시각 승인. 즉 full-02 보다 task-118 이 먼저. Claude 는 PNG·CanvasScaler·UI 임의 수정 금지.**
 
 ## 작업 요약
 
 - **Task ID**: task-116
 - **제목**: 현대 NYC 코리아타운 아트 오버홀 — 승인 콘셉트 런타임 적용
-- **상태**: in-progress — U0~U4 구현·기계 검증 완료(자산 수입·씬 전환·Codex 코드리뷰 P1/P2 반영). **오너 시각 게이트 REJECTED (2026-07-14)** — full-02 아트 + 화면 구성 task-118 대기. done 아님.
+- **상태**: in-progress — **U0~U3 + U4 CustomerSprite hotfix 완료**(자산 수입·씬 전환·CustomerSprite inactive). Codex 코드리뷰 **P1/P2 반영·최종 재리뷰 pending**(verdict 아직 changes-requested). **오너 시각 게이트 REJECTED (2026-07-14)** — full-02 아트 + 화면 구성 task-118 대기. **done 아님.**
 - **역할**: 아트 생산·시각 승인 = 오너/Codex. Claude = 기계 검증·임포트·씬 배선·테스트만(오너 2026-07-12/13 지시).
 
 ## 산출물 목록
@@ -66,13 +66,23 @@
 - **640×360 고정 캡처 4종**(장르 모달 / 모달 닫은 무대 전경 / 손님 입장+음식·매출 팝업 / Night 페이드),
   각 원본 + nearest-neighbor 2× 확대본 — Free Aspect 는 승인 자료 아님. full-02+task-118 이후 제출.
 
+**진행 순서 (오너 확정 2026-07-14 — task-118 이 full-02 보다 먼저):**
+1. **task-118 UI·뷰포트 설계 확정** (Codex 설계).
+2. 기존 자산으로 640×360 합성 화면 검증.
+3. HUD·무대·장르 카드·팝업 좌표 + 안전영역 **동결**.
+4. 그 동결 규격에 맞춰 **full-02 재생산**.
+5. Claude 통합 후 **4종 시각 승인**.
+
 **별도 task-118 (UI/뷰포트 설계 — 이 task 아님, Claude 임의 개편 금지):**
-- 16:9 고정 ViewportRoot/레터박스, 장르 4아이콘 상시 표시, 선택은 빨간 외곽선/체크로 분리,
-  거대 빈 크림 패널 제거, 아이콘·장르명·한 줄 장단점 4카드, NYC 배경 충분 노출.
+- 핵심 방향: **640×360 고정 레터박스** · 상단 **HUD 32px** · 중앙 **무대 192px** · 하단 **컨트롤 덱 136px**
+  (32+192+136=360) · **중앙 장르 모달 폐기 → 장르 4카드 상시 표시**.
+- 장르 4아이콘 상시 표시 · 선택은 빨간 외곽선/체크로 분리 · 거대 빈 크림 패널 제거 · 아이콘+장르명+
+  한 줄 장단점 4카드 · NYC 배경 충분 노출.
 - 시각 정본: `kb/concepts/art-references/2026-07-12-batch-01/{01-runtime-composition,02-market-screen}.png`.
 
-**완료된 게이트:** Codex 코드리뷰(U2/U3 diff — P0 없음, P1/P2 반영, `code-review-codex.md`).
-데모 재빌드 여부 = 오너 결정(오픈 이슈 8).
+**Codex 코드리뷰(U2/U3 diff):** P0 없음, P1(H8 스왑 방어)/P2 반영(`code-review-codex.md`). **단 공식 verdict
+는 아직 `changes-requested` — 최종 재리뷰 pending.** verdict 가 approved 로 갱신되기 전엔 "코드리뷰 완료"로
+표기하지 않는다. 데모 재빌드 여부 = 오너 결정(오픈 이슈 8).
 
 ## 관련 문서
 

@@ -1,9 +1,10 @@
 # 구현 노트 — task-116 (NYC 코리아타운 아트 오버홀)
 
-> Status: in-progress — U0~U3 구현·기계 검증 + Codex 코드리뷰(P1/P2 반영) 완료. **U4 오너 시각 게이트
-> REJECTED (2026-07-14)**: full-01 아트 Codex 시각 재검수 반려 → full-02 대기, 화면 구성은 별도 task-118.
-> CustomerSprite inactive 수정만 이번에 반영. (아트 생산·시각 승인 = 오너/Codex, Claude 는 기계 검증·임포트·
-> 씬 연결·테스트만. PNG·UI 임의 수정 금지. Claude self-approve 금지. **실제 승인 전 done 금지.**)
+> Status: in-progress — **U0~U3 + U4 CustomerSprite hotfix 완료**·기계 검증(EditMode 520/PlayMode 10).
+> Codex 코드리뷰 P1/P2 반영했으나 **verdict `changes-requested` — 최종 재리뷰 pending**(code-review-codex.md
+> 공식 verdict 가 바뀌기 전엔 "코드리뷰 완료" 아님). **U4 오너 시각 게이트 REJECTED (2026-07-14)** →
+> full-02 아트 재생산 + 화면 구성 task-118 대기. (아트 생산·시각 승인 = 오너/Codex, Claude 는 기계 검증·
+> 임포트·씬·테스트만. PNG·CanvasScaler·UI 임의 수정 금지. Claude self-approve 금지. **실제 승인 전 done 금지.**)
 > Inputs: kb/tasks/task-116/design.md (ready — 오너 A안 확정 + Codex 교차검토), design-review-codex.md,
 > kb/concepts/art-originals/PROVENANCE.md (md5 핀), sprite-production-spec.md (배치1 납품 규격),
 > 오너/Codex 전달 스테이징 패키지 `art-staging/.../full-01/handoff/NYC`(32 PNG + control preflight/SHA256)
