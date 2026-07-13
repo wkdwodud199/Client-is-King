@@ -56,7 +56,8 @@ namespace ClientIsKing.EditorTools
                 AssetDatabase.CreateFolder("Assets", "Scenes");
             }
 
-            // 플레이스홀더 스프라이트 선행 생성 (무대가 로드한다 — task-108)
+            // task-116 U3: 무대는 NYC 수입 자산을 로드한다. 플레이스홀더는 G절대로 유지·병행 —
+            // 롤백 지점(이 커밋 revert 시 CC0 화면 복귀)과 PlaceholderArtTests 기준선을 위해 계속 생성한다.
             PlaceholderArtBuilder.Apply();
 
             BuildMainMenu();
@@ -287,13 +288,14 @@ namespace ClientIsKing.EditorTools
             stageRt.anchoredPosition = Vector2.zero;
             stageRt.sizeDelta = new Vector2(640f, 360f);
 
-            // 무대 배경/카운터 — Kenney 타일을 Tiled 로 반복 (task-109). 타일 로드 실패 시 단색 폴백.
-            var floorTile = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderArtBuilder.FloorTilePath);
-            var counterTile = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderArtBuilder.CounterTilePath);
+            // task-116 U3: 무대 배경/카운터 — NYC 단판 스프라이트(backdrop 640×160 / counter 320×32).
+            // 로드 실패 시 단색 폴백(기존 계약 유지). 기존 Kenney 타일 반복 → NYC 단판(E절/오픈이슈6).
+            var backdropSprite = AssetDatabase.LoadAssetAtPath<Sprite>(NycArtContract.BackdropPath);
+            var counterSprite = AssetDatabase.LoadAssetAtPath<Sprite>(NycArtContract.CounterPath);
 
             CreateStageImage(stage.transform, "Stage_Backdrop",
                 new Vector2(0f, 100f), new Vector2(640f, 160f), new Color(0.23f, 0.17f, 0.13f, 1f),
-                floorTile);
+                backdropSprite);
 
             // 손님 이동 영역 마커 (레이아웃 앵커 — 시각 요소 없음)
             var customerArea = CreateUIObject("Stage_CustomerArea", stage.transform);
@@ -304,7 +306,7 @@ namespace ClientIsKing.EditorTools
 
             CreateStageImage(stage.transform, "Stage_Counter",
                 new Vector2(40f, 48f), new Vector2(320f, 32f), new Color(0.38f, 0.26f, 0.18f, 1f),
-                counterTile);
+                counterSprite);
 
             // 순수 장식 소품 — 좌석/동선/충돌/상호작용 없음 (주차장 가드, task-109). 음식 그릇 스프라이트 재활용.
             BuildStageProps(stage.transform);
@@ -313,7 +315,7 @@ namespace ClientIsKing.EditorTools
             var customerRt = (RectTransform)customerGo.transform;
             customerRt.anchorMin = customerRt.anchorMax = new Vector2(0.5f, 0.5f);
             customerRt.anchoredPosition = new Vector2(-360f, 56f);
-            customerRt.sizeDelta = new Vector2(64f, 64f); // 16×16 Ninja Adventure 스프라이트 ×4 (픽셀 정수배, task-109)
+            customerRt.sizeDelta = new Vector2(64f, 64f); // 32×32 NYC 손님 스프라이트 ×2 (픽셀 정수배, task-116 — rect 불변)
             var customerImage = customerGo.AddComponent<Image>();
             customerImage.raycastTarget = false;
             customerImage.preserveAspect = true;
@@ -371,10 +373,11 @@ namespace ClientIsKing.EditorTools
             var image = go.AddComponent<Image>();
             if (tileSprite != null)
             {
-                // 16×16 타일을 원본 픽셀 크기로 반복 (PPU 32 → 16px = 0.5 unit; Tiled 는 sprite rect 단위로 반복).
+                // task-116 U3: NYC 단판 스프라이트를 그대로 표시 (backdrop 640×160 / counter 320×32 — rect 와 1:1).
+                // 기존 16×16 Kenney 타일 반복(Tiled) → 단판(Simple) 전환 (E절/오픈이슈6).
                 image.sprite = tileSprite;
-                image.type = Image.Type.Tiled;
-                image.color = Color.white; // 타일 원색 유지
+                image.type = Image.Type.Simple;
+                image.color = Color.white; // 스프라이트 원색 유지
             }
             else
             {
@@ -390,9 +393,9 @@ namespace ClientIsKing.EditorTools
             // task-114: 32×32 캔버스 ×1 정수배 (기존 26×26 의 0.87× 축소 왜곡 제거).
             var props = new (string name, string spritePath, Vector2 pos, Vector2 size)[]
             {
-                ("Prop_BowlLeft",  $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png",  new Vector2(140f, 70f), new Vector2(32f, 32f)),
-                ("Prop_BowlMid",   $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png", new Vector2(178f, 70f), new Vector2(32f, 32f)),
-                ("Prop_BowlRight", $"{PlaceholderArtBuilder.FoodIconsDir}/bibim_guksu.png",  new Vector2(216f, 70f), new Vector2(32f, 32f)),
+                ("Prop_BowlLeft",  NycArtContract.FoodIconPath("pork_gukbap"),  new Vector2(140f, 70f), new Vector2(32f, 32f)),
+                ("Prop_BowlMid",   NycArtContract.FoodIconPath("janchi_guksu"), new Vector2(178f, 70f), new Vector2(32f, 32f)),
+                ("Prop_BowlRight", NycArtContract.FoodIconPath("bibim_guksu"),  new Vector2(216f, 70f), new Vector2(32f, 32f)),
             };
             foreach (var (name, spritePath, pos, size) in props)
             {
@@ -418,13 +421,13 @@ namespace ClientIsKing.EditorTools
             var list = new List<CustomerSpriteEntry>();
             foreach (var id in new[] { "student", "office_worker", "family_parent", "senior_regular" })
             {
-                var walk = PlaceholderArtBuilder.WalkFramePaths(id)
+                var walk = NycArtContract.WalkFramePaths(id)
                     .Select(p => AssetDatabase.LoadAssetAtPath<Sprite>(p))
                     .ToArray();
                 list.Add(new CustomerSpriteEntry
                 {
                     customerId = id,
-                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{PlaceholderArtBuilder.CustomersDir}/{id}.png"),
+                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{NycArtContract.CustomersDir}/{id}.png"),
                     walkFrames = walk,
                 });
             }
@@ -439,7 +442,7 @@ namespace ClientIsKing.EditorTools
                 list.Add(new RecipeSpriteEntry
                 {
                     recipeId = id,
-                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{PlaceholderArtBuilder.FoodIconsDir}/{id}.png"),
+                    sprite = AssetDatabase.LoadAssetAtPath<Sprite>(NycArtContract.FoodIconPath(id)),
                 });
             }
             return list;
@@ -477,16 +480,16 @@ namespace ClientIsKing.EditorTools
                 new Vector2(0f, 90f), new Vector2(520f, 26f));
             title.color = InkNavy;
 
-            // 4버튼 x=-180,-60,60,180 / y=50 / 110×32 / 15pt — 아이콘은 bowl/skewer/noodle/mixed
-            // placeholder (task-109 FoodIcons 재활용, 최종 아트는 Codex 승인 후 교체).
+            // 4버튼 x=-180,-60,60,180 / y=50 / 110×32 / 15pt — task-116 U3: 전용 NYC 장르 심볼로 전환
+            // (D절 매핑: 국밥=gukbap · 분식=bunsik · 면류=noodles · 균형=generalist. 기존 FoodIcons 재활용 종료).
             var gukbap = CreateGenreButton(panel.transform, "Button_Gukbap", "국밥", -180f,
-                $"{PlaceholderArtBuilder.FoodIconsDir}/pork_gukbap.png");
+                NycArtContract.GenreIconPath("gukbap"));
             var bunsik = CreateGenreButton(panel.transform, "Button_Bunsik", "분식", -60f,
-                $"{PlaceholderArtBuilder.FoodIconsDir}/tteokbokki.png");
+                NycArtContract.GenreIconPath("bunsik"));
             var noodles = CreateGenreButton(panel.transform, "Button_Noodles", "면류", 60f,
-                $"{PlaceholderArtBuilder.FoodIconsDir}/janchi_guksu.png");
+                NycArtContract.GenreIconPath("noodles"));
             var generalist = CreateGenreButton(panel.transform, "Button_Generalist", "균형", 180f,
-                $"{PlaceholderArtBuilder.FoodIconsDir}/gimbap.png");
+                NycArtContract.GenreIconPath("generalist"));
 
             // detail 영역 (0,-15)/(520×84) — 버튼 하단(34)과 detail 상단(27) 사이 7px 확보 (E3).
             var detail = CreateUIObject("Detail", panel.transform);
