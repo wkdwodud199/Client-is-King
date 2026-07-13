@@ -47,6 +47,18 @@ namespace ClientIsKing.Tests.EditMode
         }
 
         [Test]
+        public void CustomerSprite_Starts_Inactive_In_Authored_Scene()
+        {
+            // task-116 U4(오너 시각 게이트): 무주문 초기 상태에서 CustomerSprite 는 비활성이어야 한다 —
+            // 저작된 씬에 빈 손님 스프라이트가 노출되면 안 된다. 런타임 입장(활성)/퇴장(비활성)은
+            // ShopPresentationController(HandleOrderPresented / HideCustomer)가 담당한다.
+            var customer = stage.Find("CustomerSprite");
+            Assert.IsNotNull(customer, "CustomerSprite 누락");
+            Assert.IsFalse(customer.gameObject.activeSelf,
+                "CustomerSprite 는 씬 저작 시 inactive 여야 한다 (주문 발생 시 controller 가 활성화)");
+        }
+
+        [Test]
         public void Catalogs_Injected_With_Valid_Sprites()
         {
             Assert.IsNotNull(controller);

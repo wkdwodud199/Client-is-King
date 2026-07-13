@@ -1,8 +1,9 @@
 # 구현 노트 — task-116 (NYC 코리아타운 아트 오버홀)
 
-> Status: in-progress — U0·U1·U2·U3 완료·기계 검증. **남은 것 = U4 오너/Codex 640×360 시각 승인 게이트
-> + Codex 코드리뷰(구현 diff).** (아트 생산·시각 승인 = 오너/Codex, Claude 는 기계 검증·임포트·씬 연결·
-> 테스트만 — 오너 2026-07-12/07-13 지시. Claude self-approve 금지.)
+> Status: in-progress — U0~U3 구현·기계 검증 + Codex 코드리뷰(P1/P2 반영) 완료. **U4 오너 시각 게이트
+> REJECTED (2026-07-14)**: full-01 아트 Codex 시각 재검수 반려 → full-02 대기, 화면 구성은 별도 task-118.
+> CustomerSprite inactive 수정만 이번에 반영. (아트 생산·시각 승인 = 오너/Codex, Claude 는 기계 검증·임포트·
+> 씬 연결·테스트만. PNG·UI 임의 수정 금지. Claude self-approve 금지. **실제 승인 전 done 금지.**)
 > Inputs: kb/tasks/task-116/design.md (ready — 오너 A안 확정 + Codex 교차검토), design-review-codex.md,
 > kb/concepts/art-originals/PROVENANCE.md (md5 핀), sprite-production-spec.md (배치1 납품 규격),
 > 오너/Codex 전달 스테이징 패키지 `art-staging/.../full-01/handoff/NYC`(32 PNG + control preflight/SHA256)
@@ -118,3 +119,29 @@
     반려 시 색·형태 수정 없이 입력 패키지 재생산 요청으로 라우팅.
   - Codex 코드리뷰(U2/U3 전체 diff + H9 격리 메커니즘·MainMenu revert 판단 확인).
   - 데모 재빌드(NYC 반영) 여부 = 오너 결정(오픈 이슈 8).
+
+## U4 시각 게이트 REJECTED — 대응 (오너 2026-07-14)
+
+오너가 Unity 에디터에서 직접 확인 → **시각 게이트 반려**. 핵심 지적: "자산 교체만 끝내고 올바른 화면
+검수를 하지 않았다." 지시를 아래로 분류해 처리한다.
+
+**이번 커밋에 반영 (task-116 범위):**
+- **CustomerSprite 저작 즉시 inactive**: `SceneBuilder.BuildShopStage` 에서 `customerGo.SetActive(false)`.
+  무주문 초기 구간에 빈 손님 스프라이트가 무대에 노출되던 문제 수정. 런타임 입장(활성)/퇴장(비활성)은
+  `ShopPresentationController`(HandleOrderPresented→SetActive(true) / HideCustomer→SetActive(false))가 그대로
+  담당 — 동작 보존. 검증: `ShopPresentationSceneTests.CustomerSprite_Starts_Inactive_In_Authored_Scene`
+  (초기 `activeSelf==false`) 신규.
+- **summary/보드 done 철회**: `Status: done`→`in-progress`. 실제 오너/Codex 승인 전 완료 표기 금지.
+- **Galmuri11 SDF.asset 동적 재직렬화 미커밋**(노이즈).
+
+**Claude 착수 금지 (대기/이관):**
+- **full-01 아트 = Codex 시각 재검수 반려** → **full-02 입력 대기**. Claude 는 PNG 를 직접 수정/리터치하지
+  않는다(오너 point 4). 현 `game/Assets/Art/NYC/**`(full-01)는 full-02 도착 시 재수입으로 교체한다.
+- **640×360 고정 캡처 4종**(장르 모달 / 모달 닫은 무대 전경 / 손님 입장+음식·매출 팝업 / Night 페이드),
+  각 원본 + nearest-neighbor 2× 확대본이 유일한 승인 자료다(Free Aspect 금지). full-02+task-118 이후 제출.
+- **CanvasScaler 임의 조정·UI 재디자인 금지**(오너 point 5).
+
+**별도 task-118 (UI/뷰포트 설계 — Codex 설계 대상, 이 task 아님):**
+- 16:9 고정 ViewportRoot/레터박스 · 장르 4아이콘 상시 표시 · 선택 = 빨간 외곽선/체크 분리 ·
+  거대 빈 크림 패널 제거 · 아이콘+장르명+한 줄 장단점 4카드 · NYC 배경 충분 노출.
+- 시각 정본: `kb/concepts/art-references/2026-07-12-batch-01/{01-runtime-composition,02-market-screen}.png`.

@@ -321,6 +321,10 @@ namespace ClientIsKing.EditorTools
             customerImage.preserveAspect = true;
             var customerLabel = CreateText(customerGo.transform, "CustomerLabel", "", 12f,
                 new Vector2(0f, -32f), new Vector2(64f, 16f));
+            // task-116 U4(오너 시각 게이트): CustomerSprite 는 저작 즉시 inactive — 주문 없는 초기/무주문 구간에
+            // 빈 스프라이트가 무대에 노출되지 않게 한다. 런타임은 ShopPresentationController 가
+            // HandleOrderPresented→SetActive(true) / HideCustomer→SetActive(false) 로 입장·퇴장을 그대로 유지한다.
+            customerGo.SetActive(false);
 
             var orderLabel = CreateText(stage.transform, "OrderLabel", "", 13f,
                 new Vector2(-160f, 96f), new Vector2(200f, 20f));

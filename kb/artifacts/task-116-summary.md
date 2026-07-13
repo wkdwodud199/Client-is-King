@@ -1,15 +1,15 @@
 # 산출물 요약 — task-116
 
-> Status: done
-> Inputs: kb/tasks/task-116/{design.md, implementation-notes.md, sprite-production-spec.md}, kb/concepts/art-originals/PROVENANCE.md(md5 핀), 오너/Codex 전달 NYC 스프라이트 패키지(파일럿 9 → 최종 32, control preflight+SHA256)
-> Outputs: 이 요약 — NYC 코리아타운 런타임 아트 오버홀(U0 SSOT 개정 → U1 계약 → U2 32자산 수입+테스트 → U3 씬 전환) 구현·기계 검증 완료 요약과 인계
-> Next step: **오너/Codex 640×360 시각 승인 4종(Claude self-approve 금지) + Codex 코드리뷰(U2/U3 diff) → 반려 시 입력 패키지 재생산 요청 → 통과 시 task-116 최종 완료. 데모 재빌드 여부는 오너 결정(오픈 이슈 8).**
+> Status: in-progress
+> Inputs: kb/tasks/task-116/{design.md, implementation-notes.md, sprite-production-spec.md}, kb/concepts/art-originals/PROVENANCE.md(md5 핀), 오너/Codex 전달 NYC 스프라이트 패키지(full-01 — Codex 시각 재검수에서 반려됨, full-02 대기)
+> Outputs: 이 요약 — NYC 런타임 아트 오버홀 U0~U4 구현·기계 검증 요약과 인계 (U2 자산 수입·U3 씬 전환·U4 CustomerSprite inactive 수정)
+> Next step: **오너 시각 게이트 REJECTED (2026-07-14). 실제 오너/Codex 승인 전 done 금지 — Status in-progress 유지. (1) full-01 아트 Codex 시각 재검수 반려 → full-02 입력 대기(Claude PNG 미수정). (2) 화면 구성(16:9 고정 뷰포트/레터박스·장르 4카드 상시표시·거대 크림패널 제거·NYC 배경 충분 노출)은 별도 task-118 설계(CanvasScaler/UI 임의 개편 금지). (3) 640×360 고정 캡처 4종(원본+nearest 2×)은 full-02+task-118 이후 제출.**
 
 ## 작업 요약
 
 - **Task ID**: task-116
 - **제목**: 현대 NYC 코리아타운 아트 오버홀 — 승인 콘셉트 런타임 적용
-- **완료일**: 2026-07-13 (구현·기계 검증 완료 — 오너 640×360 시각 승인·Codex 코드리뷰 대기)
+- **상태**: in-progress — U0~U4 구현·기계 검증 완료(자산 수입·씬 전환·Codex 코드리뷰 P1/P2 반영). **오너 시각 게이트 REJECTED (2026-07-14)** — full-02 아트 + 화면 구성 task-118 대기. done 아님.
 - **역할**: 아트 생산·시각 승인 = 오너/Codex. Claude = 기계 검증·임포트·씬 배선·테스트만(오너 2026-07-12/13 지시).
 
 ## 산출물 목록
@@ -51,13 +51,28 @@
   추가는 신규 NYC 자산 한정, 삭제 0. 노이즈(Galmuri SDF·MainMenu 재직렬화·ProjectSettings EOL) revert.
 - 사용자 소유(UPDATING.md·kb/concepts/art-references/**·development-priority.md) 미staging.
 
-## 미결 (오너/Codex 게이트 — Claude self-approve 금지)
+## 오너 시각 게이트 REJECTED (2026-07-14) — done 금지, in-progress 유지
 
-- **640×360 시각 승인 4종**(무대 전경·서빙 팝·장르 modal·Night 페이드): 콘셉트 정체성 재현·음식 6종
-  식별·손님 4종 구분·NYC 야간 무드 판정. 오너가 Shop 씬(에디터) 또는 재빌드 exe 로 확인. 반려 시 색·형태
-  수정 없이 **입력 패키지 재생산 요청**으로 라우팅.
-- **Codex 코드리뷰**(U2/U3 전체 diff + H9 격리 메커니즘·MainMenu revert 판단 확인) — 설계 Next step 마감 조건.
-- **데모 재빌드(NYC 반영) 여부** = 오너 결정(오픈 이슈 8). task-115 Windows 빌드는 CC0 마감본.
+자산만 교체하고 실제 640×360 화면 검수를 하지 않은 채 제출한 것이 반려 사유. 지시 분류:
+
+**task-116 범위 — 이번에 반영:**
+- **CustomerSprite 저작 즉시 inactive** (SceneBuilder) + 초기 `activeSelf==false` 테스트. 주문 시 활성화/
+  퇴장 시 비활성 런타임 동작은 ShopPresentationController 그대로 보존.
+- summary Status `done`→`in-progress`, status 보드 되돌림. **실제 오너/Codex 승인 전 완료 표기 금지.**
+- Galmuri11 SDF.asset 동적 재직렬화 변경 미커밋.
+
+**대기 (Claude 착수 금지):**
+- **full-01 아트 = Codex 시각 재검수 반려** → **full-02 입력 대기**. Claude 는 PNG 를 직접 수정하지 않는다.
+- **640×360 고정 캡처 4종**(장르 모달 / 모달 닫은 무대 전경 / 손님 입장+음식·매출 팝업 / Night 페이드),
+  각 원본 + nearest-neighbor 2× 확대본 — Free Aspect 는 승인 자료 아님. full-02+task-118 이후 제출.
+
+**별도 task-118 (UI/뷰포트 설계 — 이 task 아님, Claude 임의 개편 금지):**
+- 16:9 고정 ViewportRoot/레터박스, 장르 4아이콘 상시 표시, 선택은 빨간 외곽선/체크로 분리,
+  거대 빈 크림 패널 제거, 아이콘·장르명·한 줄 장단점 4카드, NYC 배경 충분 노출.
+- 시각 정본: `kb/concepts/art-references/2026-07-12-batch-01/{01-runtime-composition,02-market-screen}.png`.
+
+**완료된 게이트:** Codex 코드리뷰(U2/U3 diff — P0 없음, P1/P2 반영, `code-review-codex.md`).
+데모 재빌드 여부 = 오너 결정(오픈 이슈 8).
 
 ## 관련 문서
 
