@@ -14,3 +14,13 @@
   1. `game/Assets/Art/NYC/**` 실제 자산/프로비넌스가 아직 없다면 공개 고지에서 현재 존재 경로처럼 쓰지 말고 "예정 경로"로 조정하거나, 공개 전 해당 디렉터리와 `NYC-ART-PROVENANCE.md`를 실제로 추가한다.
   2. `AI-ART-NOTICE.txt` KO/EN 라이선스 요약에 관할권별 저작권 성립·보호 범위 상이 및 독점성·고유성·비침해성 비보증 문구를 추가한다.
   3. `StreamingAssets/Licenses/` 안내를 현재 포함된 전문 범위로 좁히거나, 플레이스홀더 CC0 팩 관련 라이선스 근거/전문도 번들에 포함한다.
+
+## Notice Re-Review 2 — 2026-07-13
+- Reviewer: Codex
+- Review status: approved
+- Feedback:
+  1. [resolved] README 2곳의 `game/Assets/Art/NYC/**` 표기는 현재 실존 경로가 아니라 예정 경로로 조정됐다. `README.md:163`은 "아직 미포함 — 향후 task-116에서 추가 예정", `README.en.md:163`은 "is not yet included — planned for task-116"로 명시해 현재 `game/Assets/Art/NYC/` 미존재 상태와 충돌하지 않는다.
+  2. [resolved] `AI-ART-NOTICE.txt` KO/EN 라이선스 요약에 관할권별 저작권 성립·보호 범위 상이와 독점성·고유성·비침해성 비보증 문구가 추가됐다. KO는 `game/Assets/StreamingAssets/AI-ART-NOTICE.txt:11-14`, EN은 `game/Assets/StreamingAssets/AI-ART-NOTICE.txt:23-26`에서 `kb/tasks/task-116/design.md:86`의 C절 정책을 반영한다.
+  3. [resolved] `StreamingAssets/Licenses/` 안내는 현재 번들 범위로 좁혀졌다. `README.md:166`, `README.en.md:166`은 코드 MIT 전문·폰트 OFL 전문·서드파티 고지만 동봉한다고 쓰고, `game/Assets/StreamingAssets/AI-ART-NOTICE.txt:28-29`도 MIT/OFL 전문 및 THIRD-PARTY-NOTICES 참조로 한정한다. 실제 번들은 `game/Assets/StreamingAssets/Licenses/LICENSE.txt:1`, `game/Assets/StreamingAssets/Licenses/Galmuri-LICENSE.txt:3`, `game/Assets/StreamingAssets/Licenses/THIRD-PARTY-NOTICES.md:3-8`와 일치한다.
+  4. 추가 회귀 확인: README KO/EN 라이선스 절은 `README.md:160-166`, `README.en.md:160-166` 범위에서 정합하고, AI 공개문은 `kb/tasks/task-116/design.md:91-92`와 `README.md:168-170`, `README.en.md:168-170`, `game/Assets/StreamingAssets/AI-ART-NOTICE.txt:4-21` 사이에 정책 밖 신규 단정 없이 대응한다. 경로/참조도 루트 `LICENSE:1-3`, `THIRD-PARTY-NOTICES.md:3-8`, `game/Assets/Art/Placeholders/PLACEHOLDER-PROVENANCE.md:18-25`와 충돌하지 않는다.
+- Action required: 없음
